@@ -16,6 +16,7 @@ const produitSchema = new mongoose.Schema(
     achatPrice: {
       type: Number,
       required: true,
+      default: 0,
       trim: true,
     },
 
