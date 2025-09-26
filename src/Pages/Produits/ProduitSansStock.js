@@ -20,7 +20,11 @@ import { capitalizeWords, formatPrice } from '../components/capitalizeFunction';
 
 import defaultImg from './../../assets/images/no_image.png';
 import { useNavigate } from 'react-router-dom';
-import { useAllProduitWithStockInferieure } from '../../Api/queriesProduits';
+import {
+  useAllProduitWithStockInferieure,
+  useDeleteProduit,
+} from '../../Api/queriesProduits';
+import { deleteButton } from '../components/AlerteModal';
 
 export default function ProduitSansStock() {
   const {
@@ -28,6 +32,7 @@ export default function ProduitSansStock() {
     isLoading,
     error,
   } = useAllProduitWithStockInferieure();
+  const { mutate: deleteProduit } = useDeleteProduit();
 
   // Recherche State
   const [searchTerm, setSearchTerm] = useState('');
@@ -154,6 +159,16 @@ export default function ProduitSansStock() {
                         >
                           <i className='bx bx-analyse align-bottom me-2 text-muted'></i>
                           Approvisonner
+                        </DropdownItem>
+                        <DropdownItem
+                          className='remove-item-btn text-danger '
+                          onClick={() => {
+                            deleteButton(prod?._id, prod?.name, deleteProduit);
+                          }}
+                        >
+                          {' '}
+                          <i className='ri-delete-bin-fill align-bottom me-2 '></i>{' '}
+                          Supprimer{' '}
                         </DropdownItem>
                       </DropdownMenu>
                     </UncontrolledDropdown>

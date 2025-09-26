@@ -39,8 +39,9 @@ const ProduitForm = ({ produitToEdit, tog_form_modal }) => {
     },
     validationSchema: Yup.object({
       name: Yup.string().required('Ce champ est obligatoire'),
-      stock: Yup.string().required('Ce champ est obligatoire'),
+      stock: Yup.number(),
       price: Yup.number().required('Ce champ est obligatoire'),
+      achatPrice: Yup.number(),
     }),
 
     onSubmit: (values, { resetForm }) => {
@@ -173,7 +174,7 @@ const ProduitForm = ({ produitToEdit, tog_form_modal }) => {
               id='achatPrice'
               onChange={validation.handleChange}
               onBlur={validation.handleBlur}
-              value={validation.values.achatPrice || ''}
+              value={validation.values.achatPrice || 0}
               invalid={
                 validation.touched.achatPrice && validation.errors.achatPrice
                   ? true
