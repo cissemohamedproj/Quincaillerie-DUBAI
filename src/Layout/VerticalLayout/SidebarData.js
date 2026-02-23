@@ -20,7 +20,7 @@ const SidebarData = [
     url: '/produits',
   },
   {
-    label: 'Produit En Stock Faible',
+    label: 'Stock Faible',
     icon: 'mdi mdi-sitemap',
     isHasArrow: true,
     url: '/produit_no_stock',
@@ -32,7 +32,7 @@ const SidebarData = [
     url: '/topProduit',
   },
   {
-    label: 'Approvisonnement',
+    label: 'Approvisionnement',
     // icon: 'bx bx-rotate-right',
     icon: 'fas fa-redo-alt',
     isHasArrow: true,

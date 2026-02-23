@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Button,
   Card,
@@ -18,38 +18,19 @@ import {
   formatPrice,
 } from '../components/capitalizeFunction';
 import { companyName } from '../CompanyInfo/CompanyInfo';
-import { useAllCommandes } from '../../Api/queriesCommande';
+import { usePaginationCommandes } from '../../Api/queriesCommande';
 
-import html2pdf from 'html2pdf.js';
-import { useReactToPrint } from 'react-to-print';
 import FactureHeader from './Details/FactureHeader';
-
-// Export En PDF
-// ------------------------------------------
-// ------------------------------------------
-const exportPDFFacture = () => {
-  const element = document.getElementById('facture');
-  const opt = {
-    filename: 'facture.pdf',
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2 },
-    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-  };
-
-  html2pdf()
-    .from(element)
-    .set(opt)
-    .save()
-    .catch((err) => console.error('Error generating PDF:', err));
-};
+import { useNavigate } from 'react-router-dom';
 
 // ----------------------------------------
 // ----------------------------------------
 // ----------------------------------------
 export default function FactureListe() {
-  const { data: commandes, isLoading, error } = useAllCommandes();
-  const contentRef = useRef();
-  const reactToPrintFn = useReactToPrint({ contentRef });
+  const [page, setPage] = useState(1);
+  const limit = 100;
+  const navigate = useNavigate();
+  const { data: items, isLoading, error } = usePaginationCommandes(page, limit);
 
   return (
     <React.Fragment>
@@ -63,43 +44,67 @@ export default function FactureListe() {
             </div>
           )}
           {isLoading && <LoadingSpiner />}
-          {commandes?.factures?.length === 0 && !isLoading && (
+          {items?.factures?.data?.length === 0 && !isLoading && (
             <div className='text-center text-danger'>
               Aucune facture pour le moment.
             </div>
           )}
-          {!error &&
-            !isLoading &&
-            commandes?.factures?.length > 0 &&
-            commandes?.factures?.map((comm, index) => (
+          {!isLoading && !error && (
+            <div className='d-flex gap-3 justify-content-end align-items-center mt-4'>
+              <Button
+                disabled={page === 1}
+                color='secondary'
+                onClick={() => setPage((p) => p - 1)}
+              >
+                Précédent
+              </Button>
+
+              <p className='text-center mt-2'>
+                {' '}
+                Page{' '}
+                <span className='text-primary'>
+                  {items?.factures?.page}
+                </span>{' '}
+                sur{' '}
+                <span className='text-info'>{items?.factures?.totalPages}</span>
+              </p>
+              <Button
+                disabled={page === items?.factures?.totalPages}
+                color='primary'
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Suivant
+              </Button>
+            </div>
+          )}
+          {!isLoading &&
+            !error &&
+            items?.factures?.data?.length > 0 &&
+            items?.factures?.data?.map((comm, index) => (
               <Row
                 key={comm._id}
                 className='d-flex flex-column justify-content-center'
               >
                 {/* // Bouton */}
-                <Col className='col-sm-auto'>
-                  <div className='d-flex gap-4 mb-3  justify-content-center align-items-center'>
+
+                <Col className='col-sm-auto mb-3'>
+                  <div className='d-flex gap-4  justify-content-center align-items-center'>
                     <Button
                       color='info'
                       className='add-btn'
                       id='create-btn'
-                      onClick={reactToPrintFn}
+                      onClick={() =>
+                        navigate(`/factures/selected_facture/${comm?._id}`)
+                      }
                     >
-                      <i className='fas fa-print align-center me-1'></i>{' '}
-                      Imprimer
-                    </Button>
-
-                    <Button color='danger' onClick={exportPDFFacture}>
-                      <i className='fas fa-paper-plane  me-1 '></i>
-                      Télécharger en PDF
+                      <i className='bx bx-show align-center me-1'></i> Détails
                     </Button>
                   </div>
                 </Col>
                 {/* // ------------------------------------------- */}
 
                 <Card
-                  ref={contentRef}
-                  id='facture'
+                  id={`facture-${comm?._id}`}
                   className='d-flex justify-content-center border border-info'
                   style={{
                     boxShadow: '0px 0px 10px rgba(100, 169, 238, 0.5)',

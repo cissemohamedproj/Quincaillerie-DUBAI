@@ -33,6 +33,7 @@ import NewDevis from '../Pages/Devis/NewDevis.js';
 import UpdateDevis from '../Pages/Devis/UpdateDevis.js';
 import AchatListe from '../Pages/Achats/AchatListe.js';
 import TopProduits from '../Pages/Produits/TopProduits.js';
+import SelectedFacture from '../Pages/Commandes/SelectedFacture.js';
 
 const sharedRoutes = [
   // Produit de la Boutique
@@ -82,6 +83,8 @@ const authProtectedRoutes = [
 
   //  Factures Liste
   { path: '/factures', component: <FactureListe /> },
+
+  { path: '/factures/selected_facture/:id', component: <SelectedFacture /> },
 
   // Factures Détails
   { path: '/facture/:id', component: <Facture /> },

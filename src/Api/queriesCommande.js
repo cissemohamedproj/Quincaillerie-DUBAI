@@ -27,6 +27,19 @@ export const useAllCommandes = () =>
       api.get('/commandes/getAllCommandes').then((res) => res.data),
   });
 
+// Pagination des Commandes
+export const usePaginationCommandes = (page = 1, limit = 100) =>
+  useQuery({
+    queryKey: ['commandes', page, limit],
+    queryFn: () =>
+      api
+        .get('/commandes/paginationCommandes', {
+          params: { page, limit },
+        })
+        .then((res) => res.data),
+    keepPreviousData: true,
+  });
+
 // Obtenir une Commande
 export const useOneCommande = (id) =>
   useQuery({

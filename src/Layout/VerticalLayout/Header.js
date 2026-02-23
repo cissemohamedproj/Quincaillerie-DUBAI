@@ -15,9 +15,10 @@ import ProfileMenu from '../../components/Common/TopbarDropdown/ProfileMenu';
 import {
   companyLittleName,
   companyName,
-  companyLogo,
   companyOwnerName,
+  companySmallLogo,
 } from '../../Pages/CompanyInfo/CompanyInfo';
+import { capitalizeWords } from '../../Pages/components/capitalizeFunction';
 
 const Header = (props) => {
   function toggleFullscreen() {
@@ -62,7 +63,7 @@ const Header = (props) => {
       <header id='page-topbar'>
         <div className='navbar-header'>
           <div className='d-flex'>
-            <div className='navbar-brand-box text-center pt-5'>
+            {/* <div className='navbar-brand-box text-center pt-5'>
               <span>
                 <img
                   src={companyLogo}
@@ -74,9 +75,24 @@ const Header = (props) => {
                 />
                 <h5 className='text-white'>{companyLittleName}</h5>
               </span>
+            </div> */}
+
+            <div
+              className='navbar-brand-box text-center'
+              style={{ backgroundColor: ' #F7F4EA' }}
+            >
+              <span>
+                <img
+                  src={companySmallLogo}
+                  style={{
+                    width: '60px',
+                  }}
+                  alt='logo'
+                />
+              </span>
             </div>
 
-            <button
+            {/* <button
               type='button'
               className='btn btn-sm px-3 font-size-24 header-item waves-effect  mt-4'
               id='vertical-menu-btn'
@@ -110,8 +126,43 @@ const Header = (props) => {
               >
                 <i className='ri-fullscreen-line' />
               </button>
+            </div> */}
+            <button
+              type='button'
+              className='btn btn-sm px-3 font-size-24 header-item waves-effect  d-flex justify-content-center text-white align-self-center mx-3 pt-3'
+              id='vertical-menu-btn'
+              onClick={() => {
+                tToggle();
+              }}
+            >
+              <i className='dripicons-align-left align-middle text-info'></i>
+            </button>
+          </div>
+          <div className='d-none d-md-flex flex-column  align-items-center justify-content-center'>
+            <p className='fw-bold font-size-16 text-info my-1'>
+              {companyLittleName} |
+              <span className=' ms-2 text-warning'> {companyOwnerName}</span>
+            </p>
+            <p className='my-0 font-size-10 text-dark'>
+              {capitalizeWords(companyName)}{' '}
+            </p>
+            <p className='my-0 font-size-10 text-dark'>
+              {capitalizeWords(companyOwnerName)}{' '}
+            </p>
+          </div>
+          <div className='d-flex'>
+            <div className='dropdown d-none d-lg-inline-block ms-1'>
+              <button
+                type='button'
+                onClick={() => {
+                  toggleFullscreen();
+                }}
+                className='btn header-item noti-icon'
+                data-toggle='fullscreen'
+              >
+                <i className='ri-fullscreen-line' />
+              </button>
             </div>
-
             <ProfileMenu />
 
             <div
