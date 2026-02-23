@@ -8,6 +8,9 @@ router.post('/createCommande', commandeController.createCommande);
 //  Obtenir toutes les Commandes
 router.get('/getAllCommandes', commandeController.getAllCommandes);
 
+// Pagination des Commandes
+router.get('/paginationCommandes', commandeController.getPagignationCommandes);
+
 //  Obtenir une Commandes
 router.get('/getOneCommande/:id', commandeController.getOneCommande);
 

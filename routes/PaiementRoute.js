@@ -8,6 +8,12 @@ router.post('/createPaiement', paiementController.createPaiement);
 // Trouvez tous les paiements
 router.get('/getAllPaiements', paiementController.getAllPaiements);
 
+// Pagination des paiements
+router.get(
+  '/getPagignationPaiements',
+  paiementController.getPagignationPaiements
+);
+
 // Trouvez un paiements
 router.get('/getOnePaiement/:id', paiementController.getPaiement);
 

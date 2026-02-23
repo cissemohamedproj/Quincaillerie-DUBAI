@@ -68,7 +68,7 @@ exports.getAllCommandes = async (req, res) => {
   try {
     const commandesListe = await Commande.find()
       // Trie par date de création, du plus récent au plus ancien
-      .sort({ createdAt: -1 })
+      .sort({ commandeDate: -1 })
       .populate('items.produit');
 
     // Afficher les COMMANDES en fonction des PAIEMENTS effectués
@@ -77,10 +77,61 @@ exports.getAllCommandes = async (req, res) => {
         path: 'commande',
         populate: { path: 'items.produit' },
       })
-      .sort({ createdAt: -1 });
+      .sort({ commandeDate: -1 });
     return res.status(201).json({ commandesListe, factures });
   } catch (e) {
     return res.status(404).json(e);
+  }
+};
+
+exports.getPagignationCommandes = async (req, res) => {
+  try {
+    // 1️ Récupération des paramètres
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100;
+    const skip = (page - 1) * limit;
+
+    // 2️ Commandes paginées
+    const commandesListe = await Commande.find()
+      .sort({ commandeDate: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('items.produit');
+
+    // 3️ Total des commandes (pour le frontend)
+    const totalCommandes = await Commande.countDocuments();
+
+    // 4️ Factures paginées
+    const factures = await Paiement.find()
+      .sort({ commandeDate: -1 })
+      .limit(limit)
+      .skip(skip)
+      .populate({
+        path: 'commande',
+        populate: { path: 'items.produit' },
+      });
+
+    const totalFactures = await Paiement.countDocuments();
+
+    // 5️ Réponse structurée
+    return res.status(200).json({
+      commandes: {
+        data: commandesListe,
+        page,
+        limit,
+        total: totalCommandes,
+        totalPages: Math.ceil(totalCommandes / limit),
+      },
+      factures: {
+        data: factures,
+        page,
+        limit,
+        total: totalFactures,
+        totalPages: Math.ceil(totalFactures / limit),
+      },
+    });
+  } catch (e) {
+    return res.status(500).json({ message: e.message });
   }
 };
 
