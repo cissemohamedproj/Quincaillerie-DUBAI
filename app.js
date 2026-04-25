@@ -8,7 +8,7 @@ const paiementRoute = require('./routes/PaiementRoute');
 const paiementHistoriqueRoute = require('./routes/PaiementHistoriqueRoute');
 const approvisonementsRoute = require('./routes/ApprovisonementRoute');
 const depenseRoute = require('./routes/DepenseRoute');
-const achatRoute = require('./routes/AchatRoute.');
+const achatRoute = require('./routes/AchatRoute');
 const livraisonHistoriqueRoute = require('./routes/LivraisonHistoriqueRoute');
 const deivisRoute = require('./routes/DevisRoute');
 
