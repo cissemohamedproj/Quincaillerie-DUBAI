@@ -2,16 +2,29 @@ import { Card, CardBody, CardImg, CardTitle } from 'reactstrap';
 import LoadingSpiner from '../components/LoadingSpiner';
 
 import produitImage from './../../assets/images/product.png';
-import { useAllProduit } from '../../Api/queriesProduits';
+// Ancien import — chargeait TOUS les produits en mémoire pour afficher .length
+// import { useAllProduit } from '../../Api/queriesProduits';
+import { useCountProduits } from '../../Api/queriesDashboard';
 import { useNavigate } from 'react-router-dom';
 
 export default function TotalProduit() {
-  // Importing the useAllPatients hook to fetch patient data
+  /**
+   * Optimisation Dashboard :
+   * useCountProduits() appelle GET /produits/countProduits
+   * et reçoit uniquement { count: number } au lieu de la liste complète.
+   */
   const {
-    data: produitData,
+    data: countData,
     isLoading: produitLoading,
     error: produitError,
-  } = useAllProduit();
+  } = useCountProduits();
+
+  // Ancien code — conservé en commentaire pour référence
+  // const {
+  //   data: produitData,
+  //   isLoading: produitLoading,
+  //   error: produitError,
+  // } = useAllProduit();
 
   const navigate = useNavigate();
 
@@ -36,7 +49,9 @@ export default function TotalProduit() {
           />
           <CardBody>
             <CardTitle className='text-center'>
-              <span className='text-info fs-5'>{produitData.length}</span>
+              {/* ?? 0 : valeur par défaut si countData est undefined */}
+              <span className='text-info fs-5'>{countData?.count ?? 0}</span>
+              {/* Ancien affichage : {produitData.length} */}
               <p>Produits</p>
             </CardTitle>
           </CardBody>

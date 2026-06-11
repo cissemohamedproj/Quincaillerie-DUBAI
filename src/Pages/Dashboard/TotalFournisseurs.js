@@ -1,17 +1,31 @@
 import { Card, CardBody, CardImg, CardTitle } from 'reactstrap';
-import { useAllFournisseur } from '../../Api/queriesFournisseur';
+// Ancien import — chargeait tous les fournisseurs pour afficher .length
+// import { useAllFournisseur } from '../../Api/queriesFournisseur';
+import { useCountFournisseurs } from '../../Api/queriesDashboard';
 import fourImg from './../../assets/images/delivery.png';
 import LoadingSpiner from '../components/LoadingSpiner';
 import { useNavigate } from 'react-router-dom';
 import { connectedUserRole } from '../Authentication/userInfos';
 
 export default function TotalFounisseurs() {
-  // Fournisseur Data
+  /**
+   * Optimisation Dashboard :
+   * useCountFournisseurs() appelle GET /fournisseurs/countFournisseurs
+   * et reçoit uniquement { count: number }.
+   */
   const {
-    data: fournisseurData,
+    data: countData,
     isLoading: fournisseurLoading,
     error: fournisseurError,
-  } = useAllFournisseur();
+  } = useCountFournisseurs();
+
+  // Ancien code — conservé en commentaire pour référence
+  // const {
+  //   data: fournisseurData,
+  //   isLoading: fournisseurLoading,
+  //   error: fournisseurError,
+  // } = useAllFournisseur();
+
   const navigate = useNavigate();
 
   const handleNavigate = () => {
@@ -37,7 +51,8 @@ export default function TotalFounisseurs() {
           />
           <CardBody>
             <CardTitle className='text-center'>
-              <span className='text-info fs-5'>{fournisseurData.length}</span>
+              <span className='text-info fs-5'>{countData?.count ?? 0}</span>
+              {/* Ancien affichage : {fournisseurData.length} */}
               <p>Fournisseurs</p>
             </CardTitle>
           </CardBody>

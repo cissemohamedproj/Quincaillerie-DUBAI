@@ -4,15 +4,31 @@ import LoadingSpiner from '../components/LoadingSpiner';
 import comImg from './../../assets/images/passer-la-commande.png';
 import rechargeImg from './../../assets/images/recharge.png';
 import carImg from './../../assets/images/car.png';
-import { useAllCommandes } from '../../Api/queriesCommande';
+// Ancien import — chargeait TOUTES les commandes + factures + populate
+// import { useAllCommandes } from '../../Api/queriesCommande';
+import { useCountCommandesDashboard } from '../../Api/queriesDashboard';
 import { useNavigate } from 'react-router-dom';
+
+/**
+ * Les 3 composants ci-dessous partagent useCountCommandesDashboard().
+ * React Query déduplique : 1 seule requête GET /commandes/countCommandesDashboard
+ * pour les 3 cartes (total, en attente, en cours).
+ */
 
 const TotalCommande = () => {
   const {
-    data: commandeData,
+    data: countData,
     isLoading: loadingCommande,
     error: commandeError,
-  } = useAllCommandes();
+  } = useCountCommandesDashboard();
+
+  // Ancien code — conservé en commentaire pour référence
+  // const {
+  //   data: commandeData,
+  //   isLoading: loadingCommande,
+  //   error: commandeError,
+  // } = useAllCommandes();
+
   const navigate = useNavigate();
 
   const handleNavigate = () => {
@@ -36,9 +52,8 @@ const TotalCommande = () => {
           />
           <CardBody>
             <CardTitle className='text-center'>
-              <span className='text-info fs-5'>
-                {commandeData?.commandesListe?.length}
-              </span>
+              <span className='text-info fs-5'>{countData?.total ?? 0}</span>
+              {/* Ancien affichage : {commandeData?.commandesListe?.length} */}
               <p>Commandes Enregistrées</p>
             </CardTitle>
           </CardBody>
@@ -47,12 +62,21 @@ const TotalCommande = () => {
     </div>
   );
 };
+
 const TotalCommandeNotDelivred = () => {
   const {
-    data: commandeData,
+    data: countData,
     isLoading: loadingCommande,
     error: commandeError,
-  } = useAllCommandes();
+  } = useCountCommandesDashboard();
+
+  // Ancien code — conservé en commentaire pour référence
+  // const {
+  //   data: commandeData,
+  //   isLoading: loadingCommande,
+  //   error: commandeError,
+  // } = useAllCommandes();
+
   const navigate = useNavigate();
 
   const handleNavigate = () => {
@@ -78,12 +102,14 @@ const TotalCommandeNotDelivred = () => {
           <CardBody>
             <CardTitle className='text-center'>
               <span className='text-danger fs-5'>
-                {
-                  commandeData?.commandesListe?.filter(
-                    (cmd) => cmd.status === 'en attente'
-                  ).length
-                }
+                {countData?.enAttente ?? 0}
               </span>
+              {/*
+                Ancien affichage (bug : cmd.status au lieu de cmd.statut) :
+                commandeData?.commandesListe?.filter(
+                  (cmd) => cmd.status === 'en attente'
+                ).length
+              */}
               <p>Commandes Non Livrés</p>
             </CardTitle>
           </CardBody>
@@ -92,12 +118,21 @@ const TotalCommandeNotDelivred = () => {
     </div>
   );
 };
+
 const TotalCommandeToDelivre = () => {
   const {
-    data: commandeData,
+    data: countData,
     isLoading: loadingCommande,
     error: commandeError,
-  } = useAllCommandes();
+  } = useCountCommandesDashboard();
+
+  // Ancien code — conservé en commentaire pour référence
+  // const {
+  //   data: commandeData,
+  //   isLoading: loadingCommande,
+  //   error: commandeError,
+  // } = useAllCommandes();
+
   const navigate = useNavigate();
 
   const handleNavigate = () => {
@@ -123,12 +158,14 @@ const TotalCommandeToDelivre = () => {
           <CardBody>
             <CardTitle className='text-center'>
               <span className='text-warning fs-5'>
-                {
-                  commandeData?.commandesListe?.filter(
-                    (cmd) => cmd?.status === 'en cours'
-                  )?.length
-                }
+                {countData?.enCours ?? 0}
               </span>
+              {/*
+                Ancien affichage (bug : cmd.status au lieu de cmd.statut) :
+                commandeData?.commandesListe?.filter(
+                  (cmd) => cmd?.status === 'en cours'
+                )?.length
+              */}
               <p>Commandes En Cours</p>
             </CardTitle>
           </CardBody>

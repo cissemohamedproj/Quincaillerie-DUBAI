@@ -2,19 +2,32 @@ import { Card, CardBody, CardImg, CardTitle } from 'reactstrap';
 import LoadingSpiner from '../components/LoadingSpiner';
 
 import articleImg from './../../assets/images/package.png';
-import { useAllProduit } from '../../Api/queriesProduits';
+// Ancien import — chargeait tous les produits puis filtrait stock <= 10 côté client
+// import { useAllProduit } from '../../Api/queriesProduits';
+import { useCountProduitStockFaible } from '../../Api/queriesDashboard';
 import { useNavigate } from 'react-router-dom';
 import { connectedUserRole } from '../Authentication/userInfos';
 
 export default function TotalArticleSansStock() {
-  // Article Data
+  /**
+   * Optimisation Dashboard :
+   * le comptage stock <= 10 est fait côté MongoDB (countDocuments)
+   * via GET /produits/countProduitStockFaible → { count: number }
+   */
   const {
-    data: productData,
+    data: countData,
     isLoading: productLoading,
     error: productError,
-  } = useAllProduit();
+  } = useCountProduitStockFaible();
 
-  const finishStock = productData?.filter((item) => item.stock <= 10);
+  // Ancien code — conservé en commentaire pour référence
+  // const {
+  //   data: productData,
+  //   isLoading: productLoading,
+  //   error: productError,
+  // } = useAllProduit();
+  // const finishStock = productData?.filter((item) => item.stock <= 10);
+
   const navigate = useNavigate();
 
   const handleNavigate = () => {
@@ -41,7 +54,8 @@ export default function TotalArticleSansStock() {
           />
           <CardBody>
             <CardTitle className='text-center'>
-              <span className='text-danger fs-5'>{finishStock?.length}</span>
+              <span className='text-danger fs-5'>{countData?.count ?? 0}</span>
+              {/* Ancien affichage : {finishStock?.length} */}
               <p>Produits En Stock Faible</p>
             </CardTitle>
           </CardBody>
