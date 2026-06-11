@@ -8,6 +8,9 @@ router.post('/createFournisseur', fournisseurController.createFournisseur);
 // Afficher toutes les Fournisseurs
 router.get('/getAllFournisseurs', fournisseurController.getAllFournisseurs);
 
+// Compteur léger Dashboard — nombre de fournisseurs (GET uniquement)
+router.get('/countFournisseurs', fournisseurController.countFournisseurs);
+
 // Afficher un seul Fournisseur
 router.get('/getOneFournisseur/:id', fournisseurController.getFournisseur);
 

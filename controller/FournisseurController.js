@@ -222,3 +222,17 @@ exports.deleteAllFournisseurs = async (req, res) => {
     });
   }
 };
+
+/**
+ * GET /api/fournisseurs/countFournisseurs
+ * Compteur léger pour le Dashboard — retourne uniquement le nombre total
+ * de fournisseurs, sans charger la liste complète en mémoire.
+ */
+exports.countFournisseurs = async (req, res) => {
+  try {
+    const count = await Fournisseur.countDocuments();
+    return res.status(200).json({ count });
+  } catch (e) {
+    return res.status(500).json({ status: 'error', message: e.message });
+  }
+};

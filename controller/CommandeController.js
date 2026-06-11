@@ -342,6 +342,28 @@ exports.updateCommande = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/commandes/countCommandesDashboard
+ * Compteurs légers pour les 3 cartes Commandes du Dashboard.
+ * Une seule requête HTTP remplace getAllCommandes (qui charge commandes + factures + populate).
+ * Promise.all exécute les 3 countDocuments en parallèle côté MongoDB.
+ * Réponse : { total, enAttente, enCours } — uniquement des nombres.
+ * Note : le champ MongoDB est "statut" (pas "status" utilisé par erreur dans l'ancien frontend).
+ */
+exports.countCommandesDashboard = async (req, res) => {
+  try {
+    const [total, enAttente, enCours] = await Promise.all([
+      Commande.countDocuments(),
+      Commande.countDocuments({ statut: 'en attente' }),
+      Commande.countDocuments({ statut: 'en cours' }),
+    ]);
+
+    return res.status(200).json({ total, enAttente, enCours });
+  } catch (e) {
+    return res.status(500).json({ message: e.message });
+  }
+};
+
 // Produits les plus Commandés
 exports.getTopProduits = async (req, res) => {
   try {

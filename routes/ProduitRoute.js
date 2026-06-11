@@ -8,6 +8,15 @@ router.post('/addProduit', produitController.createProduit);
 // Afficher une toutes les Produit
 router.get('/getAllProduits', produitController.getAllProduits);
 
+// Compteur léger Dashboard — nombre de produits en stock (GET uniquement)
+router.get('/countProduits', produitController.countProduits);
+
+// Compteur léger Dashboard — produits en stock faible (GET uniquement)
+router.get(
+  '/countProduitStockFaible',
+  produitController.countProduitStockFaible
+);
+
 // Afficher une toutes les Produit sans Stcok
 router.get(
   '/getAllProduitWithStockFinish',

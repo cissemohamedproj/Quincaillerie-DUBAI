@@ -8,6 +8,12 @@ router.post('/createCommande', commandeController.createCommande);
 //  Obtenir toutes les Commandes
 router.get('/getAllCommandes', commandeController.getAllCommandes);
 
+// Compteurs légers Dashboard — total / en attente / en cours (GET uniquement)
+router.get(
+  '/countCommandesDashboard',
+  commandeController.countCommandesDashboard
+);
+
 // Pagination des Commandes
 router.get('/paginationCommandes', commandeController.getPagignationCommandes);
 

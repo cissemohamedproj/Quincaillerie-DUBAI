@@ -156,3 +156,35 @@ exports.deleteAllProduit = async (req, res) => {
     });
   }
 };
+
+/**
+ * GET /api/produits/countProduits
+ * Compteur léger pour le Dashboard — retourne uniquement le nombre de produits
+ * en stock (> 0), même filtre que getAllProduits, sans charger les documents.
+ * countDocuments() interroge MongoDB sans transférer les données → très peu de RAM/CPU.
+ */
+exports.countProduits = async (req, res) => {
+  try {
+    const count = await Produit.countDocuments({ stock: { $gt: 0 } });
+    return res.status(200).json({ count });
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
+ * GET /api/produits/countProduitStockFaible
+ * Compteur pour la carte "Produits En Stock Faible" du Dashboard.
+ * Reproduit la logique frontend : produits avec stock > 0 ET stock <= 10
+ * (équivalent à useAllProduit + filter stock <= 10).
+ */
+exports.countProduitStockFaible = async (req, res) => {
+  try {
+    const count = await Produit.countDocuments({
+      stock: { $gt: 0, $lte: 10 },
+    });
+    return res.status(200).json({ count });
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
