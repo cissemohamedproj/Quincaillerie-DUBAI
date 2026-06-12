@@ -26,7 +26,7 @@ export default function ListPaginationBar({
       <p className='text-muted mb-0 font-size-14'>
         {total > 0 ? (
           <>
-            <span className='fw-semibold'>{total}</span> élément
+            <span className='fw-semibold text-info'>{total}</span> élément
             {total > 1 ? 's' : ''} au total
           </>
         ) : (

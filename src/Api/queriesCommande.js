@@ -33,7 +33,7 @@ export const useAllCommandes = () =>
       api.get('/commandes/getAllCommandes').then((res) => res.data),
   });
 
-// Pagination des Commandes
+// Pagination des Commandes (utilisé par FactureListe)
 export const usePaginationCommandes = (page = 1, limit = 100) =>
   useQuery({
     queryKey: ['commandes', page, limit],
@@ -44,6 +44,48 @@ export const usePaginationCommandes = (page = 1, limit = 100) =>
         })
         .then((res) => res.data),
     keepPreviousData: true,
+  });
+
+/**
+ * Pagination + recherche + filtres — page Historique des Commandes.
+ * @param {number} page
+ * @param {number} limit
+ * @param {string} search — terme debouncé
+ * @param {object} filters — { today, enCours, enAttente } (checkboxes)
+ */
+export const usePaginationCommandesHistorique = (
+  page = 1,
+  limit = 50,
+  search = '',
+  filters = {}
+) =>
+  useQuery({
+    queryKey: [
+      'commandes',
+      'historique',
+      'pagination',
+      page,
+      limit,
+      search,
+      filters.today,
+      filters.enCours,
+      filters.enAttente,
+    ],
+    queryFn: () =>
+      api
+        .get('/commandes/paginationCommandesHistorique', {
+          params: {
+            page,
+            limit,
+            search: search.trim() || undefined,
+            today: filters.today ? true : undefined,
+            filterEnCours: filters.enCours ? true : undefined,
+            filterEnAttente: filters.enAttente ? true : undefined,
+          },
+        })
+        .then((res) => res.data),
+    keepPreviousData: true,
+    staleTime: 1000 * 60 * 2,
   });
 
 // Obtenir une Commande
