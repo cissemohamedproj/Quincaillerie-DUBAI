@@ -71,14 +71,26 @@ const SidebarData = [
     label: 'Entrées & Sorties',
     isMainMenu: true,
   },
+  // {
+  //   label: 'Comptabilité',
+  //   icon: 'fas fa-euro-sign',
+  //   subItem: [
+  //     { sublabel: 'Entrées / Paiement', link: '/paiements' },
+  //     { sublabel: 'Sorties / Dépense', link: '/depenses' },
+  //     { sublabel: 'Achat', link: '/achats' },
+  //   ],
+  // },
   {
-    label: 'Comptabilité',
+    label: 'Paiements',
     icon: 'fas fa-euro-sign',
-    subItem: [
-      { sublabel: 'Entrées / Paiement', link: '/paiements' },
-      { sublabel: 'Sorties / Dépense', link: '/depenses' },
-      { sublabel: 'Achat', link: '/achats' },
-    ],
+    isHasArrow: true,
+    url: '/paiements',
+  },
+  {
+    label: 'Dépenses',
+    icon: 'fas fa-money-bill-alt',
+    isHasArrow: true,
+    url: '/depenses',
   },
 
   // Devis

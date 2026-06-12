@@ -6,7 +6,7 @@ export const useCreateDevis = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data) => api.post('/devis/createDevis', data),
-    onSuccess: () => queryClient.invalidateQueries(['devis']),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['devis'] }),
   });
 };
 
@@ -15,7 +15,7 @@ export const useUpdateDevis = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }) => api.put(`/devis/updateDevis/${id}`, data),
-    onSuccess: () => queryClient.invalidateQueries(['devis']),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['devis'] }),
   });
 };
 
@@ -24,6 +24,34 @@ export const useAllDevis = () =>
   useQuery({
     queryKey: ['devis'],
     queryFn: () => api.get('/devis/getAllDevis').then((res) => res.data),
+  });
+
+/**
+ * Pagination + recherche serveur — page « Historique des Devis » (DevisListe).
+ * Remplace useAllDevis qui chargeait tous les devis d'un coup.
+ *
+ * @param {number} page
+ * @param {number} limit
+ * @param {string} search — terme debouncé (montant, date, nom produit…)
+ */
+export const usePaginationDevisHistorique = (
+  page = 1,
+  limit = 12,
+  search = ''
+) =>
+  useQuery({
+    queryKey: ['devis', 'historique', 'pagination', page, limit, search],
+    queryFn: () =>
+      api
+        .get('/devis/paginationDevisHistorique', {
+          params: {
+            page,
+            limit,
+            search: search.trim() || undefined,
+          },
+        })
+        .then((res) => res.data),
+    staleTime: 0,
   });
 
 // Obtenir un Devis
@@ -40,6 +68,6 @@ export const useDeleteDevis = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id) => api.delete(`/devis/deleteDevis/${id}`),
-    onSuccess: () => queryClient.invalidateQueries(['devis']),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['devis'] }),
   });
 };
