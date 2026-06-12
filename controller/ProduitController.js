@@ -2,6 +2,53 @@ const Produit = require('../models/ProduitModel');
 const Commande = require('../models/CommandeModel');
 const Approvisonnement = require('../models/ApprovisonementModel');
 
+/**
+ * Échappe les caractères spéciaux d'une chaîne pour l'utiliser
+ * dans une expression régulière MongoDB sans erreur de syntaxe.
+ */
+const escapeRegex = (value) =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Construit un filtre MongoDB combinant le filtre de base (stock, etc.)
+ * et la recherche texte — reproduit la logique du frontend :
+ * name, category, stock et price (correspondance partielle).
+ */
+const buildProduitSearchFilter = (baseFilter, searchTerm) => {
+  if (!searchTerm || !String(searchTerm).trim()) {
+    return baseFilter;
+  }
+
+  const search = escapeRegex(String(searchTerm).trim());
+  const regex = new RegExp(search, 'i');
+
+  return {
+    ...baseFilter,
+    $or: [
+      { name: regex },
+      { category: regex },
+      {
+        $expr: {
+          $regexMatch: {
+            input: { $toString: '$stock' },
+            regex: search,
+            options: 'i',
+          },
+        },
+      },
+      {
+        $expr: {
+          $regexMatch: {
+            input: { $toString: '$price' },
+            regex: search,
+            options: 'i',
+          },
+        },
+      },
+    ],
+  };
+};
+
 // Enregistrer un Produit
 exports.createProduit = async (req, res) => {
   try {
@@ -184,6 +231,94 @@ exports.countProduitStockFaible = async (req, res) => {
       stock: { $gt: 0, $lte: 10 },
     });
     return res.status(200).json({ count });
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
+ * GET /api/produits/paginationProduits?page=&limit=&search=
+ * Pagination + recherche côté serveur pour la page Liste Produits.
+ * Même documents que getAllProduits (stock > 0), mais par pages.
+ * .lean() : objets JS légers (moins de RAM que les documents Mongoose).
+ *
+ * Réponse (nouveau format paginé, getAllProduits inchangé) :
+ * {
+ *   results: { data, page, limit, total, totalPages, totalValeurBoutique }
+ * }
+ */
+exports.getPaginationProduits = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 100);
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+
+    const filter = buildProduitSearchFilter({ stock: { $gt: 0 } }, search);
+
+    const [produits, total, valeurAgg] = await Promise.all([
+      Produit.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Produit.countDocuments(filter),
+      Produit.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: null,
+            totalValeurBoutique: {
+              $sum: { $multiply: [{ $ifNull: ['$achatPrice', 0] }, { $ifNull: ['$stock', 0] }] },
+            },
+          },
+        },
+      ]),
+    ]);
+
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+
+    return res.status(200).json({
+      results: {
+        data: produits,
+        page,
+        limit,
+        total,
+        totalPages,
+        totalValeurBoutique: valeurAgg[0]?.totalValeurBoutique ?? 0,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
+ * GET /api/produits/paginationProduitStockFaible?page=&limit=&search=
+ * Pagination pour la page "Produits en stock faible".
+ * Même filtre que getAllProduitWithStockFinish (stock < 10) + recherche serveur.
+ */
+exports.getPaginationProduitStockFaible = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 100);
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+
+    const filter = buildProduitSearchFilter({ stock: { $lt: 10 } }, search);
+
+    const [produits, total] = await Promise.all([
+      Produit.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Produit.countDocuments(filter),
+    ]);
+
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+
+    return res.status(200).json({
+      results: {
+        data: produits,
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    });
   } catch (err) {
     return res.status(500).json({ status: 'error', message: err.message });
   }

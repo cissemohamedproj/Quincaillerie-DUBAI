@@ -3,7 +3,7 @@ name: Debut de Deploiement
 on:
   push:
     branches:
-      - master
+      - v2_backend
 
 jobs:
   deploy:

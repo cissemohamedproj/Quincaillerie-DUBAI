@@ -19,6 +19,12 @@ router.get(
   approvisonementController.getAllApprovisonements
 );
 
+// Pagination + recherche — Liste Approvisionnements (GET uniquement)
+router.get(
+  '/paginationApprovisonements',
+  approvisonementController.getPaginationApprovisonements
+);
+
 // Route pour récupérer un approvisionnement par son ID
 router.get(
   '/getApprovisonement/:id',

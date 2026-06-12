@@ -17,6 +17,15 @@ router.get(
   produitController.countProduitStockFaible
 );
 
+// Pagination + recherche — Liste Produits (GET uniquement, getAllProduits inchangé)
+router.get('/paginationProduits', produitController.getPaginationProduits);
+
+// Pagination + recherche — Produits stock faible (GET uniquement)
+router.get(
+  '/paginationProduitStockFaible',
+  produitController.getPaginationProduitStockFaible
+);
+
 // Afficher une toutes les Produit sans Stcok
 router.get(
   '/getAllProduitWithStockFinish',
