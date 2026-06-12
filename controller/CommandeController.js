@@ -297,7 +297,7 @@ const buildCommandeHistoriqueFilter = (
  * Réponse :
  * {
  *   results: {
- *     data: [...commandes avec hasFacture],
+ *     data: [...commandes avec hasFacture, montantCommande, montantRestant],
  *     page, limit, total, totalPages,
  *     stats: { livre, enCours, enAttente }
  *   }
@@ -360,16 +360,34 @@ exports.getPaginationCommandesHistorique = async (req, res) => {
     const pageIds = commandesListe.map((c) => c._id);
     const paiementsPage = await Paiement.find(
       { commande: { $in: pageIds } },
-      'commande'
+      'commande totalAmount totalPaye'
     ).lean();
-    const factureSet = new Set(
-      paiementsPage.map((p) => String(p.commande))
+
+    /** Map commandeId → paiement pour calcul fiable des montants */
+    const paiementByCommandeId = new Map(
+      paiementsPage.map((p) => [String(p.commande), p])
     );
 
-    const data = commandesListe.map((commande) => ({
-      ...commande,
-      hasFacture: factureSet.has(String(commande._id)),
-    }));
+    const data = commandesListe.map((commande) => {
+      const paiement = paiementByCommandeId.get(String(commande._id));
+      /**
+       * Montant commande : total facturé (paiement.totalAmount après réduction)
+       * ou totalAmount de la commande si aucune facture.
+       * Montant restant : totalAmount - totalPaye (0 si entièrement payé).
+       */
+      const montantCommande = paiement
+        ? Number(paiement.totalAmount) || 0
+        : Number(commande.totalAmount) || 0;
+      const montantPaye = paiement ? Number(paiement.totalPaye) || 0 : 0;
+      const montantRestant = Math.max(montantCommande - montantPaye, 0);
+
+      return {
+        ...commande,
+        hasFacture: Boolean(paiement),
+        montantCommande,
+        montantRestant,
+      };
+    });
 
     const stats = statsAgg[0] ?? { livre: 0, enCours: 0, enAttente: 0 };
     const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
