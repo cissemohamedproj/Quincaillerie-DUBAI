@@ -66,6 +66,60 @@ export const usePaginationFacturesHistorique = (
     staleTime: 0,
   });
 
+/**
+ * Pagination + recherche + filtres serveur — page « Paiements » (PaiementsListe).
+ * Remplace usePaginationPaiements (600/lot + filtre client).
+ *
+ * @param {number} page
+ * @param {number} limit
+ * @param {string} search — terme debouncé
+ * @param {object} filters — { impayes, today } (boutons toggle)
+ */
+export const usePaginationPaiementsListe = (
+  page = 1,
+  limit = 50,
+  search = '',
+  filters = {}
+) => {
+  const clientToday =
+    typeof window !== 'undefined'
+      ? new Date().toLocaleDateString('en-CA')
+      : undefined;
+  const clientTimezone =
+    typeof window !== 'undefined'
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : undefined;
+
+  return useQuery({
+    queryKey: [
+      'paiements',
+      'liste',
+      'pagination',
+      page,
+      limit,
+      search,
+      filters.impayes,
+      filters.today,
+      filters.today ? clientToday : null,
+    ],
+    queryFn: () =>
+      api
+        .get('/paiements/paginationPaiementsListe', {
+          params: {
+            page,
+            limit,
+            search: search.trim() || undefined,
+            filterImpayes: filters.impayes ? 'true' : undefined,
+            today: filters.today ? 'true' : undefined,
+            todayDate: filters.today ? clientToday : undefined,
+            timezone: filters.today ? clientTimezone : undefined,
+          },
+        })
+        .then((res) => res.data),
+    staleTime: 0,
+  });
+};
+
 // Obtenir une Paiement
 export const useOnePaiement = (id) =>
   useQuery({

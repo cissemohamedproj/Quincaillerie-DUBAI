@@ -26,6 +26,57 @@ export const useAllDepenses = () =>
     queryFn: () => api.get('/depenses/getAllDepense').then((res) => res.data),
   });
 
+/**
+ * Pagination + recherche + filtre « aujourd'hui » — page DepenseListe.
+ * Remplace useAllDepenses qui chargeait toutes les dépenses d'un coup.
+ *
+ * @param {number} page
+ * @param {number} limit
+ * @param {string} search — terme debouncé
+ * @param {object} filters — { today } (bouton toggle)
+ */
+export const usePaginationDepenses = (
+  page = 1,
+  limit = 50,
+  search = '',
+  filters = {}
+) => {
+  const clientToday =
+    typeof window !== 'undefined'
+      ? new Date().toLocaleDateString('en-CA')
+      : undefined;
+  const clientTimezone =
+    typeof window !== 'undefined'
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : undefined;
+
+  return useQuery({
+    queryKey: [
+      'depenses',
+      'pagination',
+      page,
+      limit,
+      search,
+      filters.today,
+      filters.today ? clientToday : null,
+    ],
+    queryFn: () =>
+      api
+        .get('/depenses/paginationDepenses', {
+          params: {
+            page,
+            limit,
+            search: search.trim() || undefined,
+            today: filters.today ? 'true' : undefined,
+            todayDate: filters.today ? clientToday : undefined,
+            timezone: filters.today ? clientTimezone : undefined,
+          },
+        })
+        .then((res) => res.data),
+    staleTime: 0,
+  });
+};
+
 // Obtenir une Depense
 export const useOneDepense = (id) =>
   useQuery({
