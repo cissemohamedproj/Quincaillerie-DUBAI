@@ -142,6 +142,15 @@ const escapeRegexCommande = (value) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
+ * Interprète un query param Express ("true", true, "1", etc.) en booléen.
+ */
+const parseQueryBool = (value) =>
+  value === true ||
+  value === 'true' ||
+  value === '1' ||
+  value === 1;
+
+/**
  * Construit le filtre MongoDB pour l'historique des commandes.
  * Reproduit la logique frontend : recherche texte + filtres checkboxes
  * (aujourd'hui, en cours, en attente).
@@ -149,35 +158,71 @@ const escapeRegexCommande = (value) =>
 const buildCommandeHistoriqueFilter = (
   search,
   today,
+  todayDate,
+  timezone,
   filterEnCours,
   filterEnAttente
 ) => {
   const andConditions = [];
 
-  if (filterEnCours === 'true' || filterEnCours === true) {
-    andConditions.push({ statut: 'en cours' });
+  // Filtres statut : si les 2 sont cochés → $or (en cours OU en attente)
+  const statutOr = [];
+  if (parseQueryBool(filterEnCours)) {
+    statutOr.push({ statut: /^en cours$/i });
   }
-  if (filterEnAttente === 'true' || filterEnAttente === true) {
-    andConditions.push({ statut: 'en attente' });
+  if (parseQueryBool(filterEnAttente)) {
+    statutOr.push({ statut: /^en attente$/i });
+  }
+  if (statutOr.length === 1) {
+    andConditions.push(statutOr[0]);
+  } else if (statutOr.length > 1) {
+    andConditions.push({ $or: statutOr });
   }
 
-  if (today === 'true' || today === true) {
-    const now = new Date();
-    const startOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
-    const endOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      23,
-      59,
-      59,
-      999
-    );
-    andConditions.push({ createdAt: { $gte: startOfDay, $lte: endOfDay } });
+  /**
+   * Aujourd'hui — reproduit l'ancien filtre client :
+   * new Date(d).toLocaleDateString() === new Date().toLocaleDateString()
+   * Le frontend envoie todayDate (YYYY-MM-DD) + timezone IANA du navigateur.
+   */
+  if (parseQueryBool(today)) {
+    const dateKey =
+      todayDate && /^\d{4}-\d{2}-\d{2}$/.test(String(todayDate))
+        ? String(todayDate)
+        : new Date().toLocaleDateString('en-CA');
+    const tz = timezone && String(timezone).trim() ? String(timezone) : 'UTC';
+
+    andConditions.push({
+      $or: [
+        {
+          $expr: {
+            $eq: [
+              {
+                $dateToString: {
+                  format: '%Y-%m-%d',
+                  date: '$commandeDate',
+                  timezone: tz,
+                },
+              },
+              dateKey,
+            ],
+          },
+        },
+        {
+          $expr: {
+            $eq: [
+              {
+                $dateToString: {
+                  format: '%Y-%m-%d',
+                  date: '$createdAt',
+                  timezone: tz,
+                },
+              },
+              dateKey,
+            ],
+          },
+        },
+      ],
+    });
   }
 
   if (search && String(search).trim()) {
@@ -265,12 +310,16 @@ exports.getPaginationCommandesHistorique = async (req, res) => {
     const skip = (page - 1) * limit;
     const search = req.query.search || '';
     const today = req.query.today;
+    const todayDate = req.query.todayDate;
+    const timezone = req.query.timezone;
     const filterEnCours = req.query.filterEnCours;
     const filterEnAttente = req.query.filterEnAttente;
 
     const filter = buildCommandeHistoriqueFilter(
       search,
       today,
+      todayDate,
+      timezone,
       filterEnCours,
       filterEnAttente
     );
@@ -289,13 +338,19 @@ exports.getPaginationCommandesHistorique = async (req, res) => {
           $group: {
             _id: null,
             livre: {
-              $sum: { $cond: [{ $eq: ['$statut', 'livré'] }, 1, 0] },
+              $sum: {
+                $cond: [{ $regexMatch: { input: '$statut', regex: /^livré$/i } }, 1, 0],
+              },
             },
             enCours: {
-              $sum: { $cond: [{ $eq: ['$statut', 'en cours'] }, 1, 0] },
+              $sum: {
+                $cond: [{ $regexMatch: { input: '$statut', regex: /^en cours$/i } }, 1, 0],
+              },
             },
             enAttente: {
-              $sum: { $cond: [{ $eq: ['$statut', 'en attente'] }, 1, 0] },
+              $sum: {
+                $cond: [{ $regexMatch: { input: '$statut', regex: /^en attente$/i } }, 1, 0],
+              },
             },
           },
         },
