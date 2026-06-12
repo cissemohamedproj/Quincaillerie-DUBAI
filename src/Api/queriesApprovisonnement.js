@@ -7,7 +7,11 @@ export const useCreateApprovisonnement = () => {
   return useMutation({
     mutationFn: (data) =>
       api.post('/approvisonnements/createApprovisonement', data),
-    onSuccess: () => queryClient.invalidateQueries(['approvisonnements']),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['approvisonnements'] });
+      queryClient.invalidateQueries({ queryKey: ['produits'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
   });
 };
 
@@ -17,7 +21,9 @@ export const useUpdateApprovisonnement = () => {
   return useMutation({
     mutationFn: ({ id, data }) =>
       api.put(`/approvisonnements/updateApprovisonement/${id}`, data),
-    onSuccess: () => queryClient.invalidateQueries(['approvisonnements']),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['approvisonnements'] });
+    },
   });
 };
 
@@ -29,6 +35,29 @@ export const useAllApprovisonnement = () =>
       api
         .get('/approvisonnements/getAllApprovisonements')
         .then((res) => res.data),
+  });
+
+/**
+ * Pagination + recherche serveur — page Liste Approvisionnements.
+ * @param {number} page   — numéro de page
+ * @param {number} limit  — lignes par page (tableau)
+ * @param {string} search — terme debouncé (produit, fournisseur, date, etc.)
+ */
+export const usePaginationApprovisonnements = (
+  page = 1,
+  limit = 50,
+  search = ''
+) =>
+  useQuery({
+    queryKey: ['approvisonnements', 'pagination', page, limit, search],
+    queryFn: () =>
+      api
+        .get('/approvisonnements/paginationApprovisonements', {
+          params: { page, limit, search: search.trim() || undefined },
+        })
+        .then((res) => res.data),
+    keepPreviousData: true,
+    staleTime: 1000 * 60 * 2,
   });
 
 // Obtenir une Approvisonnement
@@ -49,7 +78,11 @@ export const useCancelApprovisonnement = () => {
   return useMutation({
     mutationFn: (id) =>
       api.delete(`/approvisonnements/cancelApprovisonement/${id}`),
-    onSuccess: () => queryClient.invalidateQueries(['approvisonnements']),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['approvisonnements'] });
+      queryClient.invalidateQueries({ queryKey: ['produits'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
   });
 };
 
@@ -59,6 +92,8 @@ export const useDeleteApprovisonnement = () => {
   return useMutation({
     mutationFn: (id) =>
       api.delete(`/approvisonnements/deleteApprovisonement/${id}`),
-    onSuccess: () => queryClient.invalidateQueries(['approvisonnements']),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['approvisonnements'] });
+    },
   });
 };

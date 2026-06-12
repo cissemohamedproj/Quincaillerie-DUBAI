@@ -1,66 +1,60 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button, Card, CardBody, Col, Container, Row } from 'reactstrap';
 import Breadcrumbs from '../../components/Common/Breadcrumb';
 import { useNavigate } from 'react-router-dom';
 import LoadingSpiner from '../components/LoadingSpiner';
+import ListPaginationBar from '../components/ListPaginationBar';
 import {
   capitalizeWords,
   formatPhoneNumber,
   formatPrice,
 } from '../components/capitalizeFunction';
 import { deleteButton } from '../components/AlerteModal';
+// Ancien import — chargeait tous les approvisionnements avec double populate
+// import {
+//   useAllApprovisonnement,
+//   useCancelApprovisonnement,
+//   useDeleteApprovisonnement,
+// } from '../../Api/queriesApprovisonnement';
 import {
-  useAllApprovisonnement,
+  usePaginationApprovisonnements,
   useCancelApprovisonnement,
   useDeleteApprovisonnement,
 } from '../../Api/queriesApprovisonnement';
 import Swal from 'sweetalert2';
+import useDebouncedValue from '../../Hooks/useDebouncedValue';
 
 export default function ApprovisonnementListe() {
-  // Recuperer la Liste des APPROVISONNEMENT
-  const {
-    data: approvisonnementData,
-    isLoading,
-    error,
-  } = useAllApprovisonnement();
+  const [page, setPage] = useState(1);
+  const limit = 50;
 
-  // Annuler une APPROVISONNEMENT
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebouncedValue(searchTerm, 400);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const { data: items, isLoading, error, isFetching } =
+    usePaginationApprovisonnements(page, limit, debouncedSearch);
+
+  // Ancien code — conservé en commentaire
+  // const { data: approvisonnementData, isLoading, error } = useAllApprovisonnement();
+  // const filterSearchApprovisonnement = approvisonnementData?.filter((appro) => { ... });
+
+  const approPage = items?.results?.data ?? [];
+  const totalAppro = items?.results?.total ?? 0;
+  const totalPages = items?.results?.totalPages ?? 0;
+
   const { mutate: cancelApprovisonnement } = useCancelApprovisonnement();
-
-  // Supprimer une approvisonnement
   const { mutate: deleteApprovisonnement } = useDeleteApprovisonnement();
 
-  // State de chargement pour le Bouton
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // State de navigation
   const navigate = useNavigate();
 
-  // Search State
-  const [searchTerm, setSearchTerm] = useState('');
+  const showLoader = isLoading && approPage.length === 0;
+  const isSearchActive = debouncedSearch.trim().length > 0;
 
-  // Fonction pour la recherche
-  const filterSearchApprovisonnement = approvisonnementData?.filter((appro) => {
-    const search = searchTerm.toLowerCase();
-
-    return (
-      `${appro?.fournisseur?.firstName} ${appro?.fournisseur?.lasttName}`
-        .toLowerCase()
-        .includes(search) ||
-      (appro?.fournisseur?.phoneNumber || '').toString().includes(search) ||
-      appro?.fournisseur?.adresse.toLowerCase().includes(search) ||
-      appro?.produit?.name.toLowerCase().includes(search) ||
-      appro?.quantity.toString().includes(search) ||
-      appro?.price.toString().includes(search) ||
-      new Date(appro?.delivryDate)
-        .toLocaleDateString('fr-Fr')
-        .toString()
-        .includes(search)
-    );
-  });
-
-  // ---------------------------
-  // Fonction pour exeuter l'annulation de la décrementation des stocks
   function handleCancelApprovisonnement(appro) {
     const swalWithBootstrapButtons = Swal.mixin({
       customClass: {
@@ -84,8 +78,6 @@ export default function ApprovisonnementListe() {
       .then((result) => {
         if (result.isConfirmed) {
           try {
-            // --------------------------------
-            // Exécuter l'annulation
             setIsDeleting(true);
             cancelApprovisonnement(appro?._id, {
               onSuccess: () => {
@@ -128,14 +120,12 @@ export default function ApprovisonnementListe() {
         }
       });
   }
-  // ------------------------------------------------------------
 
   return (
     <React.Fragment>
       <div className='page-content'>
         <Container fluid>
           <Breadcrumbs title='Produits' breadcrumbItem='Approvisonnement' />
-          {/* -------------------------- */}
 
           <Row>
             <Col lg={12}>
@@ -145,10 +135,13 @@ export default function ApprovisonnementListe() {
                     <Col>
                       <p className='text-center font-size-15 mt-2'>
                         Approvisonnement Total:{' '}
-                        <span className='text-warning'>
-                          {' '}
-                          {approvisonnementData?.length}{' '}
-                        </span>
+                        <span className='text-warning'>{totalAppro}</span>
+                        {isSearchActive && (
+                          <span className='text-muted font-size-13'>
+                            {' '}
+                            (résultat{totalAppro > 1 ? 's' : ''} recherche)
+                          </span>
+                        )}
                       </p>
                     </Col>
                     <Col className='col-sm'>
@@ -173,136 +166,140 @@ export default function ApprovisonnementListe() {
                       </div>
                     </Col>
                   </Row>
+
                   <div id='approvisonnementList'>
                     {error && (
                       <div className='text-danger text-center'>
                         Erreur de chargement des données
                       </div>
                     )}
-                    {isLoading && <LoadingSpiner />}
+
+                    {/* Pagination EN HAUT — avant le tableau */}
+                    {!error && (totalAppro > 0 || isFetching) && (
+                      <ListPaginationBar
+                        page={page}
+                        totalPages={totalPages}
+                        total={totalAppro}
+                        onPageChange={setPage}
+                        isLoading={isFetching}
+                      />
+                    )}
+
+                    {showLoader && <LoadingSpiner />}
 
                     <div className='table-responsive table-card mt-3 mb-1'>
-                      {!filterSearchApprovisonnement?.length &&
-                        !isLoading &&
-                        !error && (
-                          <div className='text-center text-mutate'>
-                            Aucune approvisonnement pour le moment !
-                          </div>
-                        )}
-                      {!error &&
-                        filterSearchApprovisonnement?.length > 0 &&
-                        !isLoading && (
-                          <table
-                            className='table align-middle table-nowrap table-hover'
-                            id='approvisonnementTable'
-                          >
-                            <thead className='table-light'>
-                              <tr className='text-center'>
-                                <th scope='col' style={{ width: '50px' }}>
-                                  Date d'arrivée
-                                </th>
-                                <th data-sort='marchandise'>Produit</th>
-                                <th data-sort='quantity'>Quantité arrivée</th>
-                                <th data-sort='price'>Prix d'achat</th>
-                                <th data-sort='fournisseur_name'>
-                                  Fournisseur
-                                </th>
+                      {!error && !showLoader && approPage.length === 0 && (
+                        <div className='text-center text-mutate'>
+                          {isSearchActive
+                            ? `Aucun approvisionnement trouvé pour « ${debouncedSearch} »`
+                            : 'Aucune approvisonnement pour le moment !'}
+                        </div>
+                      )}
+                      {!error && approPage.length > 0 && (
+                        <table
+                          className='table align-middle table-nowrap table-hover'
+                          id='approvisonnementTable'
+                          style={{
+                            opacity: isFetching ? 0.7 : 1,
+                            transition: 'opacity 0.2s',
+                          }}
+                        >
+                          <thead className='table-light'>
+                            <tr className='text-center'>
+                              <th scope='col' style={{ width: '50px' }}>
+                                Date d'arrivée
+                              </th>
+                              <th data-sort='marchandise'>Produit</th>
+                              <th data-sort='quantity'>Quantité arrivée</th>
+                              <th data-sort='price'>Prix d'achat</th>
+                              <th data-sort='fournisseur_name'>Fournisseur</th>
+                              <th>Téléphone</th>
+                              <th>Adresse</th>
+                              <th>Action</th>
+                            </tr>
+                          </thead>
 
-                                <th>Téléphone</th>
-                                <th>Adresse</th>
-
-                                <th>Action</th>
+                          <tbody className='list form-check-all text-center'>
+                            {approPage.map((appro) => (
+                              <tr key={appro._id} className='text-center'>
+                                <th scope='row'>
+                                  {appro?.deliveryDate
+                                    ? new Date(
+                                        appro.deliveryDate
+                                      ).toLocaleDateString('fr-Fr', {
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                        weekday: 'short',
+                                      })
+                                    : '—'}
+                                </th>
+                                <td>
+                                  {capitalizeWords(appro?.produit?.name ?? '')}
+                                </td>
+                                <td>{formatPrice(appro?.quantity)}</td>
+                                <td>
+                                  {formatPrice(appro?.price)}
+                                  {' F '}
+                                </td>
+                                <td>
+                                  {capitalizeWords(
+                                    appro?.fournisseur?.firstName ?? ''
+                                  )}{' '}
+                                  {capitalizeWords(
+                                    appro?.fournisseur?.lastName ?? ''
+                                  )}
+                                </td>
+                                <td>
+                                  {formatPhoneNumber(
+                                    appro?.fournisseur?.phoneNumber
+                                  )}
+                                </td>
+                                <td>
+                                  {capitalizeWords(
+                                    appro?.fournisseur?.adresse ?? ''
+                                  )}
+                                </td>
+                                <td>
+                                  <div className='d-flex gap-2 justify-content-center'>
+                                    {isDeleting && <LoadingSpiner />}
+                                    {!isDeleting && (
+                                      <div className='remove'>
+                                        <button
+                                          className='btn btn-sm btn-warning remove-item-btn'
+                                          type='button'
+                                          onClick={() =>
+                                            handleCancelApprovisonnement(appro)
+                                          }
+                                        >
+                                          Annuler
+                                        </button>
+                                      </div>
+                                    )}
+                                    {!isDeleting && (
+                                      <div className='remove'>
+                                        <button
+                                          className='btn btn-sm btn-danger remove-item-btn'
+                                          type='button'
+                                          onClick={() => {
+                                            deleteButton(
+                                              appro?._id,
+                                              appro?.produit?.name,
+                                              deleteApprovisonnement
+                                            );
+                                          }}
+                                        >
+                                          <i className='ri-delete-bin-fill text-white'></i>
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
                               </tr>
-                            </thead>
-
-                            <tbody className='list form-check-all text-center'>
-                              {filterSearchApprovisonnement?.map((appro) => (
-                                <tr key={appro._id} className='text-center'>
-                                  <th scope='row'>
-                                    {' '}
-                                    {new Date(
-                                      appro.deliveryDate
-                                    ).toLocaleDateString('fr-Fr', {
-                                      year: 'numeric',
-                                      month: '2-digit',
-                                      day: '2-digit',
-                                      weekday: 'short',
-                                    })}
-                                  </th>
-                                  <td>
-                                    {capitalizeWords(appro?.produit?.name)}
-                                  </td>
-
-                                  <td>{formatPrice(appro?.quantity)}</td>
-                                  <td>
-                                    {formatPrice(appro?.price)}
-                                    {' F '}
-                                  </td>
-
-                                  <td>
-                                    {capitalizeWords(
-                                      appro.fournisseur?.firstName
-                                    )}{' '}
-                                    {capitalizeWords(
-                                      appro.fournisseur?.lastName
-                                    )}{' '}
-                                  </td>
-
-                                  <td>
-                                    {formatPhoneNumber(
-                                      appro?.fournisseur?.phoneNumber
-                                    )}
-                                  </td>
-                                  <td>
-                                    {capitalizeWords(
-                                      appro?.fournisseur?.adresse
-                                    )}
-                                  </td>
-
-                                  <td>
-                                    <div className='d-flex gap-2'>
-                                      {isDeleting && <LoadingSpiner />}{' '}
-                                      {!isDeleting && (
-                                        <div className='remove'>
-                                          <button
-                                            className='btn btn-sm btn-warning remove-item-btn'
-                                            data-bs-toggle='modal'
-                                            data-bs-target='#deleteRecordModal'
-                                            onClick={() =>
-                                              handleCancelApprovisonnement(
-                                                appro
-                                              )
-                                            }
-                                          >
-                                            Annuler
-                                          </button>
-                                        </div>
-                                      )}
-                                      {!isDeleting && (
-                                        <div className='remove'>
-                                          <button
-                                            className='btn btn-sm btn-danger remove-item-btn'
-                                            data-bs-toggle='modal'
-                                            data-bs-target='#deleteRecordModal'
-                                            onClick={() => {
-                                              deleteButton(
-                                                appro?._id,
-                                                appro?.produit?.name,
-                                                deleteApprovisonnement
-                                              );
-                                            }}
-                                          >
-                                            <i className='ri-delete-bin-fill text-white'></i>
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
                     </div>
                   </div>
                 </CardBody>

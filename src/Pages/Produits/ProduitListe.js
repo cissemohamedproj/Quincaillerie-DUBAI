@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -17,42 +17,60 @@ import Breadcrumbs from '../../components/Common/Breadcrumb';
 import FormModal from '../components/FormModal';
 
 import LoadingSpiner from '../components/LoadingSpiner';
+import ListPaginationBar from '../components/ListPaginationBar';
 import { capitalizeWords, formatPrice } from '../components/capitalizeFunction';
 
 import { deleteButton } from '../components/AlerteModal';
 import defaultImg from './../../assets/images/no_image.png';
 import { useNavigate } from 'react-router-dom';
 import ProduitForm from './ProduitForm';
-import { useAllProduit, useDeleteProduit } from '../../Api/queriesProduits';
+// Ancien import — chargeait TOUS les produits d'un coup
+// import { useAllProduit, useDeleteProduit } from '../../Api/queriesProduits';
+import {
+  usePaginationProduits,
+  useDeleteProduit,
+} from '../../Api/queriesProduits';
 import { connectedUserRole } from '../Authentication/userInfos';
+import useDebouncedValue from '../../Hooks/useDebouncedValue';
 
 export default function ProduitListe() {
   const [form_modal, setForm_modal] = useState(false);
-  const { data: produits, isLoading, error } = useAllProduit();
+  const [page, setPage] = useState(1);
+  const limit = 24;
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebouncedValue(searchTerm, 400);
+
+  /**
+   * Quand la recherche debouncée change, on revient à la page 1
+   * pour afficher les premiers résultats filtrés (pas une page vide).
+   */
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const { data: items, isLoading, error, isFetching } = usePaginationProduits(
+    page,
+    limit,
+    debouncedSearch
+  );
+
+  // Ancien code — conservé en commentaire
+  // const { data: produits, isLoading, error } = useAllProduit();
+  // const filterSearchProduits = useMemo(() => produits?.filter(...), [produits, searchTerm]);
+  // const totalProduitAchatPrice = useMemo(() => filterSearchProduits?.reduce(...), [...]);
+
+  const produitsPage = items?.results?.data ?? [];
+  const totalProduits = items?.results?.total ?? 0;
+  const totalPages = items?.results?.totalPages ?? 0;
+  const totalValeurBoutique = items?.results?.totalValeurBoutique ?? 0;
+
   const { mutate: deleteProduit } = useDeleteProduit();
   const [produitToUpdate, setProduitToUpdate] = useState(null);
   const [formModalTitle, setFormModalTitle] = useState('Ajouter un Produit');
 
-  // Recherche State
-  const [searchTerm, setSearchTerm] = useState('');
-
-  // Fontion pour Rechercher
-  const filterSearchProduits = useMemo(() => {
-    return produits?.filter((prod) => {
-      const search = searchTerm.toLowerCase();
-
-      return (
-        prod?.name?.toLowerCase().includes(search) ||
-        prod?.category?.toLowerCase().includes(search) ||
-        prod?.stock?.toString().includes(search) ||
-        prod?.price?.toString().includes(search)
-      );
-    });
-  }, [produits, searchTerm]);
-
-  // Utilisation de useNavigate pour la navigation
   const navigate = useNavigate();
-  // Function to handle deletion of a medicament
+
   function navigateToProduitApprovisonnement(id) {
     navigate(`/approvisonnement/${id}`);
   }
@@ -61,25 +79,15 @@ export default function ProduitListe() {
     setForm_modal(!form_modal);
   }
 
-  const totalProduitAchatPrice = useMemo(
-    () =>
-      filterSearchProduits?.reduce(
-        (acc, item) => (acc += item?.achatPrice * item?.stock),
-        0
-      ),
-    [filterSearchProduits]
-  );
-  // -----------------------------------------------------------------
-  // -----------------------------------------------------------------
-  // -----------------------------------------------------------------
-  // -----------------------------------------------------------------
+  const showLoader = isLoading && produitsPage.length === 0;
+  const isSearchActive = debouncedSearch.trim().length > 0;
+
   return (
     <React.Fragment>
       <div className='page-content'>
         <Container fluid>
           <Breadcrumbs title='Produits' breadcrumbItem='Liste de Produits' />
 
-          {/* -------------------------- */}
           <FormModal
             form_modal={form_modal}
             setForm_modal={setForm_modal}
@@ -93,8 +101,6 @@ export default function ProduitListe() {
               />
             }
           />
-
-          {/* -------------------------- */}
 
           <Row>
             <Col lg={12}>
@@ -123,16 +129,18 @@ export default function ProduitListe() {
                       <Col>
                         <p className='text-center font-size-15 mt-2'>
                           Produit Total:{' '}
-                          <span className='text-warning'>
-                            {' '}
-                            {produits?.length}{' '}
-                          </span>
+                          <span className='text-warning'>{totalProduits}</span>
+                          {isSearchActive && (
+                            <span className='text-muted font-size-13'>
+                              {' '}
+                              (résultat{totalProduits > 1 ? 's' : ''} recherche)
+                            </span>
+                          )}
                         </p>
                         <p className='text-center font-size-15 mt-2'>
                           Valeur de Boutique:{' '}
                           <span className='text-warning'>
-                            {' '}
-                            {formatPrice(totalProduitAchatPrice)}{' '}
+                            {formatPrice(totalValeurBoutique)}
                           </span>
                         </p>
                       </Col>
@@ -163,22 +171,36 @@ export default function ProduitListe() {
               </Card>
             </Col>
           </Row>
+
+          {/* Pagination EN HAUT — avant la grille de cartes */}
+          {!error && (totalProduits > 0 || isFetching) && (
+            <ListPaginationBar
+              page={page}
+              totalPages={totalPages}
+              total={totalProduits}
+              onPageChange={setPage}
+              isLoading={isFetching}
+            />
+          )}
+
           <div className='d-flex justify-content-center align-items-center gap-4 flex-wrap'>
-            {isLoading && <LoadingSpiner />}
+            {showLoader && <LoadingSpiner />}
             {error && (
               <div className='text-danger text-center'>
                 Erreur lors de chargement des données
               </div>
             )}
-            {!error && !isLoading && filterSearchProduits?.length === 0 && (
-              <div className='text-center'>Aucun Produit trouvés</div>
+            {!error && !showLoader && produitsPage.length === 0 && (
+              <div className='text-center'>
+                {isSearchActive
+                  ? `Aucun produit trouvé pour « ${debouncedSearch} »`
+                  : 'Aucun Produit trouvé'}
+              </div>
             )}
             {!error &&
-              !isLoading &&
-              filterSearchProduits?.length > 0 &&
-              filterSearchProduits?.map((prod, index) => (
+              produitsPage.map((prod) => (
                 <Card
-                  key={index}
+                  key={prod._id}
                   style={{
                     boxShadow: '0px 0px 10px rgba(121,3,105,0.5)',
                     borderRadius: '15px',
@@ -188,6 +210,8 @@ export default function ProduitListe() {
                     alignItems: 'center',
                     position: 'relative',
                     width: '210px',
+                    opacity: isFetching ? 0.7 : 1,
+                    transition: 'opacity 0.2s',
                   }}
                 >
                   {connectedUserRole === 'admin' && (
@@ -237,9 +261,8 @@ export default function ProduitListe() {
                               );
                             }}
                           >
-                            {' '}
-                            <i className='ri-delete-bin-fill align-bottom me-2 '></i>{' '}
-                            Supprimer{' '}
+                            <i className='ri-delete-bin-fill align-bottom me-2 '></i>
+                            Supprimer
                           </DropdownItem>
                         </DropdownMenu>
                       </UncontrolledDropdown>
@@ -264,6 +287,7 @@ export default function ProduitListe() {
                     }}
                     src={prod?.imageUrl ? prod?.imageUrl : defaultImg}
                     alt={prod?.name}
+                    loading='lazy'
                   />
 
                   <CardBody>

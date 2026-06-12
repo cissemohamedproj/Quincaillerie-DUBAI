@@ -3,7 +3,7 @@ name: Dépoiement de Frontent
 on:
   push:
     branches:
-      - main
+      - v2_frontend
 jobs:
   deploy:
     runs-on: ubuntu-latest

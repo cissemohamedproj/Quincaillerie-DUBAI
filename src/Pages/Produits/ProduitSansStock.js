@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -16,45 +16,55 @@ import {
 import Breadcrumbs from '../../components/Common/Breadcrumb';
 
 import LoadingSpiner from '../components/LoadingSpiner';
+import ListPaginationBar from '../components/ListPaginationBar';
 import { capitalizeWords, formatPrice } from '../components/capitalizeFunction';
 
 import defaultImg from './../../assets/images/no_image.png';
 import { useNavigate } from 'react-router-dom';
+// Ancien import — chargeait tous les produits stock < 10
+// import {
+//   useAllProduitWithStockInferieure,
+//   useDeleteProduit,
+// } from '../../Api/queriesProduits';
 import {
-  useAllProduitWithStockInferieure,
+  usePaginationProduitStockFaible,
   useDeleteProduit,
 } from '../../Api/queriesProduits';
 import { deleteButton } from '../components/AlerteModal';
+import useDebouncedValue from '../../Hooks/useDebouncedValue';
 
 export default function ProduitSansStock() {
-  const {
-    data: produits,
-    isLoading,
-    error,
-  } = useAllProduitWithStockInferieure();
+  const [page, setPage] = useState(1);
+  const limit = 24;
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebouncedValue(searchTerm, 400);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const { data: items, isLoading, error, isFetching } =
+    usePaginationProduitStockFaible(page, limit, debouncedSearch);
+
+  // Ancien code — conservé en commentaire
+  // const { data: produits, isLoading, error } = useAllProduitWithStockInferieure();
+  // const filterSearchProduits = produits?.filter((prod) => { ... });
+
+  const produitsPage = items?.results?.data ?? [];
+  const totalProduits = items?.results?.total ?? 0;
+  const totalPages = items?.results?.totalPages ?? 0;
+
   const { mutate: deleteProduit } = useDeleteProduit();
 
-  // Recherche State
-  const [searchTerm, setSearchTerm] = useState('');
-
-  // Fontion pour Rechercher
-  const filterSearchProduits = produits?.filter((prod) => {
-    const search = searchTerm.toLowerCase();
-
-    return (
-      prod?.name?.toLowerCase().includes(search) ||
-      prod?.category?.toLowerCase().includes(search) ||
-      prod?.stock?.toString().includes(search) ||
-      prod?.price?.toString().includes(search)
-    );
-  });
-
-  // Utilisation de useNavigate pour la navigation
   const navigate = useNavigate();
-  // Function to handle deletion of a medicament
+
   function navigateToProduitApprovisonnement(id) {
     navigate(`/approvisonnement/${id}`);
   }
+
+  const showLoader = isLoading && produitsPage.length === 0;
+  const isSearchActive = debouncedSearch.trim().length > 0;
 
   return (
     <React.Fragment>
@@ -74,10 +84,13 @@ export default function ProduitSansStock() {
                       <Col>
                         <p className='text-center font-size-15 mt-2'>
                           Produit Total:{' '}
-                          <span className='text-warning'>
-                            {' '}
-                            {produits?.length}{' '}
-                          </span>
+                          <span className='text-warning'>{totalProduits}</span>
+                          {isSearchActive && (
+                            <span className='text-muted font-size-13'>
+                              {' '}
+                              (résultat{totalProduits > 1 ? 's' : ''} recherche)
+                            </span>
+                          )}
                         </p>
                       </Col>
                       <Col>
@@ -107,24 +120,36 @@ export default function ProduitSansStock() {
               </Card>
             </Col>
           </Row>
+
+          {/* Pagination EN HAUT */}
+          {!error && (totalProduits > 0 || isFetching) && (
+            <ListPaginationBar
+              page={page}
+              totalPages={totalPages}
+              total={totalProduits}
+              onPageChange={setPage}
+              isLoading={isFetching}
+            />
+          )}
+
           <div className='d-flex justify-content-center align-items-center gap-4 flex-wrap'>
-            {isLoading && <LoadingSpiner />}
+            {showLoader && <LoadingSpiner />}
             {error && (
               <div className='text-danger text-center'>
                 Erreur lors de chargement des données
               </div>
             )}
-            {!error && !isLoading && filterSearchProduits?.length === 0 && (
+            {!error && !showLoader && produitsPage.length === 0 && (
               <div className='text-center'>
-                Aucun Produit sans stock pour le moment
+                {isSearchActive
+                  ? `Aucun produit trouvé pour « ${debouncedSearch} »`
+                  : 'Aucun Produit sans stock pour le moment'}
               </div>
             )}
             {!error &&
-              !isLoading &&
-              filterSearchProduits?.length > 0 &&
-              filterSearchProduits?.map((prod, index) => (
+              produitsPage.map((prod) => (
                 <Card
-                  key={index}
+                  key={prod._id}
                   style={{
                     boxShadow: '0px 0px 10px rgba(121,3,105,0.5)',
                     borderRadius: '15px',
@@ -134,6 +159,8 @@ export default function ProduitSansStock() {
                     alignItems: 'center',
                     position: 'relative',
                     width: '210px',
+                    opacity: isFetching ? 0.7 : 1,
+                    transition: 'opacity 0.2s',
                   }}
                 >
                   <div
@@ -166,9 +193,8 @@ export default function ProduitSansStock() {
                             deleteButton(prod?._id, prod?.name, deleteProduit);
                           }}
                         >
-                          {' '}
-                          <i className='ri-delete-bin-fill align-bottom me-2 '></i>{' '}
-                          Supprimer{' '}
+                          <i className='ri-delete-bin-fill align-bottom me-2 '></i>
+                          Supprimer
                         </DropdownItem>
                       </DropdownMenu>
                     </UncontrolledDropdown>
@@ -183,6 +209,7 @@ export default function ProduitSansStock() {
                     }}
                     src={prod?.imageUrl ? prod?.imageUrl : defaultImg}
                     alt={prod?.name}
+                    loading='lazy'
                   />
 
                   <CardBody>
