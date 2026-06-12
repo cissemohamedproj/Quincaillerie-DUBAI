@@ -1,68 +1,58 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Bar } from 'react-chartjs-2';
 import 'chart.js/auto';
 import { Chart, CategoryScale } from 'chart.js';
-import { useAllPaiements } from '../../Api/queriesPaiement';
-import { useAllDepenses } from '../../Api/queriesDepense';
+import { Row, Col, Spinner } from 'reactstrap';
+import { useStatsGraphiquesMensuels } from '../../Api/queriesRapport';
+import { formatRapportChartValue } from './formatRapportMontant';
 
 Chart.register(CategoryScale);
 
+const MONTH_LABELS = [
+  'Jan',
+  'Fév',
+  'Mar',
+  'Avr',
+  'Mai',
+  'Jui',
+  'Juil',
+  'Aoû',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Déc',
+];
+
 const BarChartEntreSortie = () => {
-  const { data: paiementsData = [] } = useAllPaiements();
-  const { data: depenseData = [] } = useAllDepenses();
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const yearOptions = Array.from({ length: 6 }, (_, i) => {
+    return new Date().getFullYear() - i;
+  });
 
-  const sumPaiementTotalAmoutByMonth = (paiement) => {
-    const monthlySums = new Array(12).fill(0);
-    paiement.forEach((paie) => {
-      const date = new Date(paie.paiementDate);
-      if (!isNaN(date)) {
-        const month = date.getMonth();
-        monthlySums[month] += Number(paie.totalPaye || 0);
-      }
-    });
-    return monthlySums;
-  };
+  /** Entrées = totalPaye, Sorties = dépenses (dateOfDepense) — agrégées serveur */
+  const { data, isLoading, isFetching } =
+    useStatsGraphiquesMensuels(selectedYear);
 
-  const sumTotalAmountByMonth = (items) => {
-    const monthlySums = new Array(12).fill(0);
-    items.forEach((item) => {
-      const date = new Date(item.dateOfDepense);
-      if (!isNaN(date)) {
-        const month = date.getMonth();
-        monthlySums[month] += Number(item.totalAmount || 0);
-      }
-    });
-    return monthlySums;
-  };
+  const entreesData = data?.entrees ?? new Array(12).fill(0);
+  const sortiesData = data?.depenses ?? new Array(12).fill(0);
 
-  const labels = [
-    'Jan',
-    'Fév',
-    'Mar',
-    'Avr',
-    'Mai',
-    'Jui',
-    'Juil',
-    'Aoû',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Déc',
-  ];
+  /* ── Ancien code client ──
+  import { useAllPaiements } from '../../Api/queriesPaiement';
+  import { useAllDepenses } from '../../Api/queriesDepense';
+  ── */
 
-  const data = {
-    labels,
+  const chartData = {
+    labels: MONTH_LABELS,
     datasets: [
       {
         label: 'Entrée (Paiements)',
-        data: sumPaiementTotalAmoutByMonth(paiementsData),
+        data: entreesData,
         backgroundColor: ' #328E6E',
         barThickness: 10,
       },
-
       {
         label: 'Sortie (Dépenses)',
-        data: sumTotalAmountByMonth(depenseData),
+        data: sortiesData,
         backgroundColor: ' #CF0F47',
         barThickness: 10,
       },
@@ -83,8 +73,14 @@ const BarChartEntreSortie = () => {
       },
       title: {
         display: true,
-        text: 'Statistiques des Entrée, Sortie',
+        text: `Statistiques des Entrée, Sortie — ${selectedYear}`,
         color: '#102E50',
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx) =>
+            `${ctx.dataset.label}: ${formatRapportChartValue(ctx.raw)}`,
+        },
       },
     },
     interaction: {
@@ -112,9 +108,6 @@ const BarChartEntreSortie = () => {
       duration: 1000,
       easing: 'easeInOutQuart',
     },
-    animationSteps: 60,
-    animationEasing: 'easeInOutQuart',
-    responsiveAnimationDuration: 500,
     scales: {
       x: {
         grid: {
@@ -131,6 +124,7 @@ const BarChartEntreSortie = () => {
         },
         ticks: {
           color: ' #3A59D1',
+          callback: (value) => formatRapportChartValue(value),
         },
         beginAtZero: true,
       },
@@ -139,7 +133,31 @@ const BarChartEntreSortie = () => {
 
   return (
     <React.Fragment>
-      <Bar width={537} height={268} data={data} options={options} />
+      <Row className='mb-3 align-items-center'>
+        <Col xs='auto'>
+          <label className='form-label mb-0 me-2'>Année :</label>
+        </Col>
+        <Col xs='auto'>
+          <select
+            className='form-select form-select-sm'
+            style={{ minWidth: '100px' }}
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+          >
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </Col>
+        {(isLoading || isFetching) && (
+          <Col xs='auto'>
+            <Spinner size='sm' color='primary' />
+          </Col>
+        )}
+      </Row>
+      <Bar width={537} height={268} data={chartData} options={options} />
     </React.Fragment>
   );
 };

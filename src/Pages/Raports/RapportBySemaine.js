@@ -1,112 +1,41 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { Card, Col, Row } from 'reactstrap';
-import { useAllPaiements } from '../../Api/queriesPaiement';
-import { useAllDepenses } from '../../Api/queriesDepense';
-import { formatPrice } from '../components/capitalizeFunction'; // Pour afficher les montants formatés
-import { useAllCommandes } from '../../Api/queriesCommande';
+import React, { useState } from 'react';
+import { Card, Col, Row, Spinner } from 'reactstrap';
+import { formatRapportMontant } from './formatRapportMontant';
+import { useRapportPeriode } from '../../Api/queriesRapport';
+
+const todayLocalDateKey = () => new Date().toLocaleDateString('en-CA');
 
 const RapportBySemaine = () => {
-  const { data: commandes = [] } = useAllCommandes();
-  const { data: paiementsData = [] } = useAllPaiements();
-  const { data: depenseData = [] } = useAllDepenses();
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  // Helper pour filtrer entre deux dates
-  const isBetweenDates = useCallback(
-    (dateStr) => {
-      if (!startDate || !endDate) return true; // si pas encore choisi, on ne filtre pas
-      const date = new Date(dateStr).getTime();
-      const start = new Date(startDate).getTime();
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      return date >= start && date <= end.getTime();
-    },
-    [startDate, endDate]
+  /** Requête activée uniquement quand les deux dates sont renseignées (évite d'afficher toutes les données). */
+  const periodeReady = Boolean(startDate && endDate);
+  const { data, isLoading, isFetching } = useRapportPeriode(
+    startDate,
+    endDate
   );
-  // Calcul de Nombre de Commande pour le 7 dernier jour
-  const recentCommande = useMemo(
-    () =>
-      commandes?.commandesListe?.filter((item) => {
-        return isBetweenDates(item.commandeDate);
-      }),
-    [commandes, isBetweenDates]
-  );
-  // Calcul de la somme total de Commande pour le 7 dernier jour
-  const totalCommandeNumber = recentCommande?.length;
+  const stats = periodeReady ? data?.stats ?? {} : {};
 
-  // Recente Paiements Amount Paye
-  const recentPaiement = useMemo(
-    () =>
-      paiementsData?.filter((item) => {
-        return isBetweenDates(item.paiementDate);
-      }),
-    [paiementsData, isBetweenDates]
-  );
+  const totalCommandeNumber = stats.totalCommandes ?? 0;
+  const totalPaiementsAmount = stats.totalAPayer ?? 0;
+  const totalPaiementsPaye = stats.totalPaye ?? 0;
+  const totalPaiementsToPaye = stats.totalImpaye ?? 0;
+  const totalDepenses = stats.totalDepenses ?? 0;
+  const totalAchat = stats.totalAchat ?? 0;
+  const benefice = stats.benefice ?? 0;
 
-  // Calculer le total de Somme à Payé pour le 7 dernier jour
-  const totalPaiementsAmount = recentPaiement?.reduce(
-    (acc, item) => acc + Number(item.totalAmount || 0),
-    0
-  );
-  // Calculer le total de Somme Payé pour le 7 dernier jour
-  const totalPaiementsPaye = recentPaiement?.reduce(
-    (acc, item) => acc + Number(item.totalPaye || 0),
-    0
-  );
-  // Calculer le total de Somme Impayé pour le 7 dernier jour
-  const totalPaiementsToPaye = totalPaiementsAmount - totalPaiementsPaye || 0;
-
-  // Recent Depense
-  const recentDepense = useMemo(
-    () =>
-      depenseData?.filter((item) => {
-        return isBetweenDates(item.dateOfDepense);
-      }),
-    [depenseData, isBetweenDates]
-  );
-
-  // Calculer la somme Dépensés pour le 7 dernier jour
-  const totalDepenses = recentDepense?.reduce(
-    (acc, item) => acc + Number(item.totalAmount || 0),
-    0
-  );
-
-  // Calcule de CA , REVENUE, BENEFICE
-  // const { totalCA, totalAchat, benefice } = useMemo(() => {
-  const { totalAchat, benefice } = useMemo(() => {
-    if (!paiementsData) {
-      return { totalAchat: 0, benefice: 0 };
-    }
-
-    // On filtre d'abord les paiements par date sélectionnée
-    const paiementsFiltres = paiementsData?.filter((item) => {
-      return isBetweenDates(item?.paiementDate);
-    });
-
-    // let totalCA = 0; // chiffre d’affaires
-    let totalAchat = 0; // coût d’achat
-
-    paiementsFiltres?.forEach((paiement) => {
-      paiement.commande?.items.forEach((item) => {
-        const produit = item?.produit;
-        if (!produit) return;
-
-        // totalCA += (item?.customerPrice || 0) * (item?.quantity || 0);
-        totalAchat += (produit?.achatPrice || 0) * (item?.quantity || 0);
-      });
-    });
-
-    const total = totalPaiementsPaye - totalAchat;
-    const benefice = total - totalDepenses;
-
-    return { totalAchat, benefice };
-  }, [paiementsData, isBetweenDates, totalPaiementsPaye, totalDepenses]);
+  /* ── Ancien code client ──
+  import { useCallback, useMemo } from 'react';
+  import { useAllPaiements } from '../../Api/queriesPaiement';
+  import { useAllDepenses } from '../../Api/queriesDepense';
+  import { useAllCommandes } from '../../Api/queriesCommande';
+  // isBetweenDates retournait true si pas de dates → affichait TOUTES les données
+  ── */
 
   return (
     <React.Fragment>
       <Card style={{ boxShadow: '0px 0px 10px rgba(123, 123, 123, 0.28)' }}>
-        {/* Filtrage Bouton */}
         <Row className='mb-4'>
           <Col md={12}>
             <h4 className='text-center my-4' style={{ color: '#27548A' }}>
@@ -125,9 +54,9 @@ const RapportBySemaine = () => {
               <p className='text-center text-light'>Date de Début</p>
               <input
                 type='date'
-                max={new Date().toISOString().split('T')[0]}
+                max={todayLocalDateKey()}
                 className='form-control border-1 border-dark'
-                value={startDate || ''}
+                value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
             </Col>
@@ -143,18 +72,27 @@ const RapportBySemaine = () => {
               <input
                 type='date'
                 min={startDate}
-                max={new Date().toISOString().split('T')[0]}
+                max={todayLocalDateKey()}
                 className='form-control border-1 border-dark'
-                value={endDate || ''}
+                value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
             </Col>
           </div>
+          {periodeReady && (isLoading || isFetching) && (
+            <div className='text-center mb-3'>
+              <Spinner color='primary' size='sm' /> Chargement…
+            </div>
+          )}
+          {!periodeReady && (
+            <p className='text-center text-muted mb-3'>
+              Sélectionnez une date de début et de fin pour afficher les
+              statistiques.
+            </p>
+          )}
         </Row>
 
-        {/* Résultats */}
         <Row>
-          {/* Bénefices */}
           <Col sm={6} lg={4}>
             <Card
               style={{
@@ -164,16 +102,14 @@ const RapportBySemaine = () => {
                 height: '100px',
               }}
             >
-              {' '}
               <h5 className='mb-1 text-white'>Bénéfice</h5>
               {benefice <= 0 ? (
-                <h4 className='text-danger'>{formatPrice(benefice)} F</h4>
+                <h4 className='text-danger'>{formatRapportMontant(benefice)} F</h4>
               ) : (
-                <h4 className='text-success'>{formatPrice(benefice)} F</h4>
+                <h4 className='text-success'>{formatRapportMontant(benefice)} F</h4>
               )}
-            </Card>{' '}
+            </Card>
           </Col>
-          {/* Paiements */}
           <Col sm={6} lg={4}>
             <Card
               style={{
@@ -184,7 +120,7 @@ const RapportBySemaine = () => {
               }}
             >
               <h4 className='mb-1' style={{ color: '#B6F500' }}>
-                {formatPrice(totalPaiementsPaye)} F
+                {formatRapportMontant(totalPaiementsPaye)} F
               </h4>
               <p className='text-white'>
                 Revenue (Chiffre d'Affaire)
@@ -193,7 +129,7 @@ const RapportBySemaine = () => {
                   style={{ color: '#B6F500' }}
                 ></i>
               </p>
-            </Card>{' '}
+            </Card>
           </Col>
           <Col sm={6} lg={4}>
             <Card
@@ -205,7 +141,7 @@ const RapportBySemaine = () => {
               }}
             >
               <h4 className='mb-1' style={{ color: '#B6F500' }}>
-                {formatPrice(totalAchat)} F
+                {formatRapportMontant(totalAchat)} F
               </h4>
               <p className='text-white'>
                 Achat sur Revenue
@@ -214,10 +150,9 @@ const RapportBySemaine = () => {
                   style={{ color: '#B6F500' }}
                 ></i>
               </p>
-            </Card>{' '}
+            </Card>
           </Col>
 
-          {/* Dépences */}
           <Col sm={6} lg={4}>
             <Card
               style={{
@@ -227,9 +162,8 @@ const RapportBySemaine = () => {
                 height: '100px',
               }}
             >
-              {' '}
               <h4 className='mb-1' style={{ color: '#CB0404' }}>
-                {formatPrice(totalDepenses)} F
+                {formatRapportMontant(totalDepenses)} F
               </h4>
               <p className='text-white'>
                 Dépenses
@@ -238,10 +172,9 @@ const RapportBySemaine = () => {
                   style={{ color: '#CB0404' }}
                 ></i>
               </p>
-            </Card>{' '}
+            </Card>
           </Col>
 
-          {/* Commande */}
           <Col sm={6} lg={4}>
             <Card
               style={{
@@ -253,7 +186,7 @@ const RapportBySemaine = () => {
             >
               <h5 className='text-warning mb-1'>{totalCommandeNumber}</h5>
               <p className='text-white'>Commandes</p>
-            </Card>{' '}
+            </Card>
           </Col>
           <Col sm={6} lg={4}>
             <Card
@@ -268,25 +201,22 @@ const RapportBySemaine = () => {
               <p className='my-1 text-light'>
                 Total À Payé:{' '}
                 <span className='text-light ps-2'>
-                  {' '}
-                  {formatPrice(totalPaiementsAmount)} F
+                  {formatRapportMontant(totalPaiementsAmount)} F
                 </span>
               </p>
               <p className='my-1 text-light'>
                 Net Payé:{' '}
                 <span className='text-success ps-2'>
-                  {' '}
-                  {formatPrice(totalPaiementsPaye)} F
+                  {formatRapportMontant(totalPaiementsPaye)} F
                 </span>
               </p>
               <p className='my-1 text-light'>
                 Impayé:{' '}
                 <span className='text-danger ps-2'>
-                  {' '}
-                  {formatPrice(totalPaiementsToPaye)} F
+                  {formatRapportMontant(totalPaiementsToPaye)} F
                 </span>
               </p>
-            </Card>{' '}
+            </Card>
           </Col>
         </Row>
       </Card>

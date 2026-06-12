@@ -1,15 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { Card, CardBody, Col, Row } from 'reactstrap';
-import { useAllPaiements } from '../../Api/queriesPaiement';
-import { useAllDepenses } from '../../Api/queriesDepense';
-import { formatPrice } from '../components/capitalizeFunction'; // Pour afficher les montants formatés
-import { useAllCommandes } from '../../Api/queriesCommande';
+import React, { useState } from 'react';
+import { Card, CardBody, Col, Row, Spinner } from 'reactstrap';
+import { formatRapportMontant } from './formatRapportMontant';
+import { useRapportMensuel } from '../../Api/queriesRapport';
 
 const SelectedMounthTotalResult = () => {
-  const { data: commandes = [] } = useAllCommandes();
-  const { data: paiementsData = [] } = useAllPaiements();
-  const { data: depenseData = [] } = useAllDepenses();
-
   const monthOptions = [
     'Janvier',
     'Février',
@@ -26,89 +20,45 @@ const SelectedMounthTotalResult = () => {
   ];
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  // Calcul de Nombre total de COMMANDE pour le mois sélectionné
-  const totalCommandesNumber = useMemo(() => {
-    return commandes?.commandesListe?.filter((item) => {
-      const date = new Date(item.createdAt);
-      return !isNaN(date) && date.getMonth() === selectedMonth;
-    }).length;
-  }, [commandes, selectedMonth]);
+  /** Années disponibles : 5 dernières + année courante */
+  const yearOptions = Array.from({ length: 6 }, (_, i) => {
+    return new Date().getFullYear() - i;
+  });
 
-  // Calcul de somme total de Paiements pour le mois sélectionné
-  const totalPaiementsToPaye = useMemo(() => {
-    return paiementsData?.reduce((acc, item) => {
-      const date = new Date(item.paiementDate);
-      if (!isNaN(date) && date.getMonth() === selectedMonth) {
-        acc += Number(item.totalAmount || 0);
-      }
-      return acc;
-    }, 0);
-  }, [paiementsData, selectedMonth]);
+  /**
+   * Stats serveur — corrige l'ancien bug mensuel :
+   * - bénéfice utilisait totalAPayer au lieu de totalPaye
+   * - dépenses filtrées sur createdAt au lieu de dateOfDepense
+   * - mois sans année (mélangeait toutes les années)
+   */
+  const { data, isLoading, isFetching } = useRapportMensuel(
+    selectedMonth,
+    selectedYear
+  );
+  const stats = data?.stats ?? {};
 
-  // Calcul de somme total Payé pour le mois sélectionné
-  const totalPaiementsAmountPaye = useMemo(() => {
-    return paiementsData?.reduce((acc, item) => {
-      const date = new Date(item.paiementDate);
-      if (!isNaN(date) && date.getMonth() === selectedMonth) {
-        acc += Number(item.totalPaye || 0);
-      }
-      return acc;
-    }, 0);
-  }, [paiementsData, selectedMonth]);
+  const totalCommandesNumber = stats.totalCommandes ?? 0;
+  const totalPaiementsToPaye = stats.totalAPayer ?? 0;
+  const totalPaiementsAmountPaye = stats.totalPaye ?? 0;
+  const totalPaiementsNotPaye = stats.totalImpaye ?? 0;
+  const totalDepenses = stats.totalDepenses ?? 0;
+  const totalAchat = stats.totalAchat ?? 0;
+  const benefice = stats.benefice ?? 0;
 
-  // Calcul de somme total de Paiement Impayé pour le mois sélectionné
-  const totalPaiementsNotPaye =
-    totalPaiementsToPaye - totalPaiementsAmountPaye || 0;
-
-  // Calcul de total pour Dépenses pour le mois sélectionné
-  const totalDepenses = useMemo(() => {
-    return depenseData.reduce((acc, item) => {
-      const date = new Date(item.createdAt);
-      if (!isNaN(date) && date.getMonth() === selectedMonth) {
-        acc += Number(item.totalAmount || 0);
-      }
-      return acc;
-    }, 0);
-  }, [depenseData, selectedMonth]);
-
-  // Calculer Le revenu (Bénéfice) pour le mois sélectionné
-  // ---------------------------------------------------
-  // ---------------------------------------------------
-  const { totalAchat, benefice } = useMemo(() => {
-    if (!paiementsData) {
-      return { totalAchat: 0, benefice: 0 };
-    }
-
-    // On filtre d'abord les paiements par date sélectionnée
-    const paiementsFiltres = paiementsData?.filter((item) => {
-      const date = new Date(item?.paiementDate).getMonth();
-      return date === selectedMonth;
-    });
-
-    // let totalCA = 0; // chiffre d’affaires
-    let totalAchat = 0; // coût d’achat
-
-    paiementsFiltres?.forEach((paiement) => {
-      paiement.commande?.items.forEach((item) => {
-        const produit = item?.produit;
-        if (!produit) return;
-
-        // totalCA += (item?.customerPrice || 0) * (item?.quantity || 0);
-        totalAchat += (produit?.achatPrice || 0) * (item?.quantity || 0);
-      });
-    });
-
-    const total = totalPaiementsToPaye - totalAchat;
-    const benefice = total - totalDepenses;
-
-    return { totalAchat, benefice };
-  }, [paiementsData, selectedMonth, totalPaiementsToPaye, totalDepenses]);
+  /* ── Ancien code client (BUG : benefice = totalAPayer - achat - depenses) ──
+  import { useMemo } from 'react';
+  import { useAllPaiements } from '../../Api/queriesPaiement';
+  import { useAllDepenses } from '../../Api/queriesDepense';
+  import { useAllCommandes } from '../../Api/queriesCommande';
+  const total = totalPaiementsToPaye - totalAchat; // ← totalAmount, pas totalPaye !
+  const benefice = total - totalDepenses;
+  ── */
 
   return (
     <React.Fragment>
       <Card style={{ boxShadow: '0px 0px 10px rgba(123, 123, 123, 0.28)' }}>
-        {/* Filtrage Bouton */}
         <Row>
           <Col md={4}>
             <Card
@@ -118,11 +68,13 @@ const SelectedMounthTotalResult = () => {
             >
               <CardBody>
                 <h6 className='text-white text-center'>Sélectionnez un Mois</h6>
-                <div className='d-flex align-items-center justify-content-between mb-3'>
+                <div className='d-flex align-items-center gap-2 mb-3'>
                   <select
                     className='form-select form-select-sm'
                     value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                    onChange={(e) =>
+                      setSelectedMonth(parseInt(e.target.value, 10))
+                    }
                   >
                     {monthOptions.map((label, index) => (
                       <option key={index} value={index}>
@@ -130,22 +82,37 @@ const SelectedMounthTotalResult = () => {
                       </option>
                     ))}
                   </select>
+                  <select
+                    className='form-select form-select-sm'
+                    style={{ maxWidth: '100px' }}
+                    value={selectedYear}
+                    onChange={(e) =>
+                      setSelectedYear(parseInt(e.target.value, 10))
+                    }
+                  >
+                    {yearOptions.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-
-                <div className='text-center text-white'></div>
+                {(isLoading || isFetching) && (
+                  <div className='text-center'>
+                    <Spinner size='sm' color='light' />
+                  </div>
+                )}
               </CardBody>
             </Card>
           </Col>
           <Col md={4}>
             <h4 className='text-center mt-5' style={{ color: '#BE5B50' }}>
-              Rapports Mensuel
+              Rapports Mensuel — {monthOptions[selectedMonth]} {selectedYear}
             </h4>
           </Col>
         </Row>
 
-        {/* Résultats */}
         <Row>
-          {/* Bénefices */}
           <Col sm={6} lg={4}>
             <Card
               style={{
@@ -155,16 +122,14 @@ const SelectedMounthTotalResult = () => {
                 height: '100px',
               }}
             >
-              {' '}
               <h5 className='mb-1 text-white'>Bénéfice</h5>
               {benefice <= 0 ? (
-                <h4 className='text-danger'>{formatPrice(benefice)} F</h4>
+                <h4 className='text-danger'>{formatRapportMontant(benefice)} F</h4>
               ) : (
-                <h4 className='text-success'>{formatPrice(benefice)} F</h4>
+                <h4 className='text-success'>{formatRapportMontant(benefice)} F</h4>
               )}
-            </Card>{' '}
+            </Card>
           </Col>
-          {/* Paiements */}
           <Col sm={6} lg={4}>
             <Card
               style={{
@@ -182,9 +147,9 @@ const SelectedMounthTotalResult = () => {
                 ></i>
               </p>
               <h4 className='mb-1' style={{ color: ' #B6F500' }}>
-                {formatPrice(totalPaiementsAmountPaye)} F
+                {formatRapportMontant(totalPaiementsAmountPaye)} F
               </h4>
-            </Card>{' '}
+            </Card>
           </Col>
           <Col sm={6} lg={4}>
             <Card
@@ -197,12 +162,11 @@ const SelectedMounthTotalResult = () => {
             >
               <p className='text-white'>Achat sur Revenue</p>
               <h4 className='mb-1' style={{ color: '#B6F500' }}>
-                {formatPrice(totalAchat)} F
+                {formatRapportMontant(totalAchat)} F
               </h4>
-            </Card>{' '}
+            </Card>
           </Col>
 
-          {/* Dépences */}
           <Col sm={6} lg={4}>
             <Card
               style={{
@@ -212,7 +176,6 @@ const SelectedMounthTotalResult = () => {
                 height: '100px',
               }}
             >
-              {' '}
               <p className='text-white'>
                 Dépenses
                 <i
@@ -221,12 +184,11 @@ const SelectedMounthTotalResult = () => {
                 ></i>
               </p>
               <h4 className='mb-1' style={{ color: '#901E3E' }}>
-                {formatPrice(totalDepenses)} F
+                {formatRapportMontant(totalDepenses)} F
               </h4>
-            </Card>{' '}
+            </Card>
           </Col>
 
-          {/* Commandes */}
           <Col sm={6} lg={4}>
             <Card
               style={{
@@ -238,7 +200,7 @@ const SelectedMounthTotalResult = () => {
             >
               <p className='text-white'>Commandes</p>
               <h5 className='text-warning my-1'>{totalCommandesNumber}</h5>
-            </Card>{' '}
+            </Card>
           </Col>
           <Col sm={6} lg={4}>
             <Card
@@ -253,22 +215,19 @@ const SelectedMounthTotalResult = () => {
               <h5 className='my-1 text-light'>
                 Total À Payé:{' '}
                 <span className='text-light ps-3'>
-                  {' '}
-                  {formatPrice(totalPaiementsToPaye)} F
+                  {formatRapportMontant(totalPaiementsToPaye)} F
                 </span>
               </h5>
               <h5 className='my-1 text-light'>
                 Net Payé:{' '}
                 <span className='text-success ps-3'>
-                  {' '}
-                  {formatPrice(totalPaiementsAmountPaye)} F
+                  {formatRapportMontant(totalPaiementsAmountPaye)} F
                 </span>
               </h5>
               <h5 className='my-1 text-light'>
                 Impayé:{' '}
                 <span className='text-danger ps-3'>
-                  {' '}
-                  {formatPrice(totalPaiementsNotPaye)} F
+                  {formatRapportMontant(totalPaiementsNotPaye)} F
                 </span>
               </h5>
             </Card>

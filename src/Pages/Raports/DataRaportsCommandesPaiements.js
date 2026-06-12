@@ -1,102 +1,73 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Bar } from 'react-chartjs-2';
 import 'chart.js/auto';
 import { Chart, CategoryScale } from 'chart.js';
-import { useAllCommandes } from '../../Api/queriesCommande';
-import { useAllPaiements } from '../../Api/queriesPaiement';
+import { Row, Col, Spinner } from 'reactstrap';
+import { useStatsGraphiquesMensuels } from '../../Api/queriesRapport';
+import { formatRapportChartValue } from './formatRapportMontant';
 
 Chart.register(CategoryScale);
 
+const MONTH_LABELS = [
+  'Jan',
+  'Fév',
+  'Mar',
+  'Avr',
+  'Mai',
+  'Jui',
+  'Juil',
+  'Aoû',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Déc',
+];
+
 const BarChartCommandePaiement = () => {
-  const { data: commandes = [] } = useAllCommandes();
-  const { data: paiements = [] } = useAllPaiements();
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const yearOptions = Array.from({ length: 6 }, (_, i) => {
+    return new Date().getFullYear() - i;
+  });
 
-  const countCommandeByMonth = (item) => {
-    const monthlyCounts = new Array(12).fill(0);
-    item?.forEach((comm) => {
-      const date = new Date(comm.commandeDate);
-      if (!isNaN(date)) {
-        const month = date.getMonth();
-        monthlyCounts[month]++;
-      }
-    });
-    return monthlyCounts;
-  };
+  /** Agrégation MongoDB par mois — plus de chargement de toutes les commandes/paiements */
+  const { data, isLoading, isFetching } =
+    useStatsGraphiquesMensuels(selectedYear);
 
-  const sumTotalAmountToPayeByMonth = (items) => {
-    const monthlySums = new Array(12).fill(0);
-    items?.forEach((item) => {
-      const date = new Date(item.paiementDate);
-      if (!isNaN(date)) {
-        const month = date.getMonth();
-        monthlySums[month] += Number(item.totalAmount || 0);
-      }
-    });
-    return monthlySums;
-  };
-  const sumTotalAmountPayeByMonth = (items) => {
-    const monthlySums = new Array(12).fill(0);
-    items?.forEach((item) => {
-      const date = new Date(item.paiementDate);
-      if (!isNaN(date)) {
-        const month = date.getMonth();
-        monthlySums[month] += Number(item.totalPaye || 0);
-      }
-    });
-    return monthlySums;
-  };
-  const sumTotalAmountNotPayeByMonth = (items) => {
-    const monthlySums = new Array(12).fill(0);
-    items?.forEach((item) => {
-      const date = new Date(item.paiementDate);
-      if (!isNaN(date)) {
-        const month = date.getMonth();
-        monthlySums[month] += Number(item.totalAmount - item.totalPaye || 0);
-      }
-    });
-    return monthlySums;
-  };
+  const commandesData = data?.commandes ?? new Array(12).fill(0);
+  const totalAPayerData = data?.paiements?.totalAPayer ?? new Array(12).fill(0);
+  const totalPayeData = data?.paiements?.totalPaye ?? new Array(12).fill(0);
+  const totalImpayeData = data?.paiements?.totalImpaye ?? new Array(12).fill(0);
 
-  const labels = [
-    'Jan',
-    'Fév',
-    'Mar',
-    'Avr',
-    'Mai',
-    'Jui',
-    'Juil',
-    'Aoû',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Déc',
-  ];
+  /* ── Ancien code client ──
+  import { useAllCommandes } from '../../Api/queriesCommande';
+  import { useAllPaiements } from '../../Api/queriesPaiement';
+  const countCommandeByMonth = … getMonth() sans filtre année
+  ── */
 
-  const data = {
-    labels,
+  const chartData = {
+    labels: MONTH_LABELS,
     datasets: [
       {
         label: 'Nombre de Commandes',
-        data: countCommandeByMonth(commandes?.commandesListe),
+        data: commandesData,
         backgroundColor: ' #5F8B4C',
         barThickness: 10,
       },
       {
-        label: `Somme à Payé  `,
-        data: sumTotalAmountToPayeByMonth(paiements),
+        label: 'Somme à Payé',
+        data: totalAPayerData,
         backgroundColor: ' #FFD63A',
         barThickness: 10,
       },
-
       {
-        label: `Somme Payé`,
-        data: sumTotalAmountPayeByMonth(paiements),
+        label: 'Somme Payé',
+        data: totalPayeData,
         backgroundColor: ' #4cd13a',
         barThickness: 10,
       },
       {
-        label: `Somme Impayé`,
-        data: sumTotalAmountNotPayeByMonth(paiements),
+        label: 'Somme Impayé',
+        data: totalImpayeData,
         backgroundColor: ' #d13a3a',
         barThickness: 10,
       },
@@ -117,8 +88,14 @@ const BarChartCommandePaiement = () => {
       },
       title: {
         display: true,
-        text: 'Statistiques de Boutique',
+        text: `Statistiques de Boutique — ${selectedYear}`,
         color: '#102E50',
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx) =>
+            `${ctx.dataset.label}: ${formatRapportChartValue(ctx.raw)}`,
+        },
       },
     },
     interaction: {
@@ -146,10 +123,6 @@ const BarChartCommandePaiement = () => {
       duration: 1000,
       easing: 'easeInOutQuart',
     },
-    animationSteps: 60,
-    animationEasing: 'easeInOutQuart',
-    responsiveAnimationDuration: 500,
-
     scales: {
       x: {
         grid: {
@@ -166,6 +139,7 @@ const BarChartCommandePaiement = () => {
         },
         ticks: {
           color: ' #3A59D1',
+          callback: (value) => formatRapportChartValue(value),
         },
         beginAtZero: true,
       },
@@ -174,7 +148,32 @@ const BarChartCommandePaiement = () => {
 
   return (
     <React.Fragment>
-      <Bar width={537} height={268} data={data} options={options} />
+      {/* Sélecteur d'année en haut du graphique */}
+      <Row className='mb-3 align-items-center'>
+        <Col xs='auto'>
+          <label className='form-label mb-0 me-2'>Année :</label>
+        </Col>
+        <Col xs='auto'>
+          <select
+            className='form-select form-select-sm'
+            style={{ minWidth: '100px' }}
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+          >
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </Col>
+        {(isLoading || isFetching) && (
+          <Col xs='auto'>
+            <Spinner size='sm' color='primary' />
+          </Col>
+        )}
+      </Row>
+      <Bar width={537} height={268} data={chartData} options={options} />
     </React.Fragment>
   );
 };
