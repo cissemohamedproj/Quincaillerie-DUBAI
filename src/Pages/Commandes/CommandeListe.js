@@ -386,6 +386,7 @@ export default function CommandeListe() {
                               <th className='sort' data-sort='items'>
                                 Article
                               </th>
+                              <th scope='col'>Montants</th>
                               <th className='sort' data-sort='statut'>
                                 Statut
                               </th>
@@ -421,6 +422,26 @@ export default function CommandeListe() {
                                 </td>
                                 <td>{capitalizeWords(comm?.adresse)}</td>
                                 <td>{comm?.items?.length} acticles</td>
+                                <td>
+                                  <div className='d-flex flex-column align-items-center gap-1 font-size-13'>
+                                    <span className='text-primary fw-semibold'>
+                                      {formatPrice(
+                                        comm?.montantCommande ??
+                                          comm?.totalAmount ??
+                                          0
+                                      )}{' '}
+                                      F
+                                    </span>
+                                    <span className='text-danger fw-semibold'>
+                                      {formatPrice(
+                                        comm?.montantRestant ??
+                                          comm?.totalAmount ??
+                                          0
+                                      )}{' '}
+                                      F
+                                    </span>
+                                  </div>
+                                </td>
                                 <td>
                                   <span
                                     className={`badge badge-soft-${
