@@ -135,6 +135,209 @@ exports.getPagignationCommandes = async (req, res) => {
   }
 };
 
+/**
+ * Échappe les caractères spéciaux pour une regex MongoDB sûre (recherche commandes).
+ */
+const escapeRegexCommande = (value) =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Construit le filtre MongoDB pour l'historique des commandes.
+ * Reproduit la logique frontend : recherche texte + filtres checkboxes
+ * (aujourd'hui, en cours, en attente).
+ */
+const buildCommandeHistoriqueFilter = (
+  search,
+  today,
+  filterEnCours,
+  filterEnAttente
+) => {
+  const andConditions = [];
+
+  if (filterEnCours === 'true' || filterEnCours === true) {
+    andConditions.push({ statut: 'en cours' });
+  }
+  if (filterEnAttente === 'true' || filterEnAttente === true) {
+    andConditions.push({ statut: 'en attente' });
+  }
+
+  if (today === 'true' || today === true) {
+    const now = new Date();
+    const startOfDay = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+    const endOfDay = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
+    andConditions.push({ createdAt: { $gte: startOfDay, $lte: endOfDay } });
+  }
+
+  if (search && String(search).trim()) {
+    const escaped = escapeRegexCommande(String(search).trim());
+    const regex = new RegExp(escaped, 'i');
+
+    andConditions.push({
+      $or: [
+        { fullName: regex },
+        { adresse: regex },
+        { statut: regex },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $toString: '$phoneNumber' },
+              regex: escaped,
+              options: 'i',
+            },
+          },
+        },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $toString: { $size: '$items' } },
+              regex: escaped,
+              options: 'i',
+            },
+          },
+        },
+        {
+          $expr: {
+            $regexMatch: {
+              input: {
+                $dateToString: { format: '%d/%m/%Y', date: '$commandeDate' },
+              },
+              regex: escaped,
+              options: 'i',
+            },
+          },
+        },
+        {
+          $expr: {
+            $regexMatch: {
+              input: {
+                $dateToString: { format: '%d/%m/%Y', date: '$createdAt' },
+              },
+              regex: escaped,
+              options: 'i',
+            },
+          },
+        },
+      ],
+    });
+  }
+
+  if (andConditions.length === 0) return {};
+  if (andConditions.length === 1) return andConditions[0];
+  return { $and: andConditions };
+};
+
+/**
+ * GET /api/commandes/paginationCommandesHistorique
+ * Pagination + recherche + filtres pour la page "Historique des Commandes".
+ * paginationCommandes et getAllCommandes restent inchangés.
+ *
+ * Query params :
+ * - page, limit, search
+ * - today=true          → commandes créées aujourd'hui (createdAt)
+ * - filterEnCours=true  → statut "en cours"
+ * - filterEnAttente=true → statut "en attente"
+ *
+ * Réponse :
+ * {
+ *   results: {
+ *     data: [...commandes avec hasFacture],
+ *     page, limit, total, totalPages,
+ *     stats: { livre, enCours, enAttente }
+ *   }
+ * }
+ */
+exports.getPaginationCommandesHistorique = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+    const today = req.query.today;
+    const filterEnCours = req.query.filterEnCours;
+    const filterEnAttente = req.query.filterEnAttente;
+
+    const filter = buildCommandeHistoriqueFilter(
+      search,
+      today,
+      filterEnCours,
+      filterEnAttente
+    );
+
+    const [commandesListe, total, statsAgg] = await Promise.all([
+      Commande.find(filter)
+        .sort({ commandeDate: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('items.produit')
+        .lean(),
+      Commande.countDocuments(filter),
+      Commande.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: null,
+            livre: {
+              $sum: { $cond: [{ $eq: ['$statut', 'livré'] }, 1, 0] },
+            },
+            enCours: {
+              $sum: { $cond: [{ $eq: ['$statut', 'en cours'] }, 1, 0] },
+            },
+            enAttente: {
+              $sum: { $cond: [{ $eq: ['$statut', 'en attente'] }, 1, 0] },
+            },
+          },
+        },
+      ]),
+    ]);
+
+    const pageIds = commandesListe.map((c) => c._id);
+    const paiementsPage = await Paiement.find(
+      { commande: { $in: pageIds } },
+      'commande'
+    ).lean();
+    const factureSet = new Set(
+      paiementsPage.map((p) => String(p.commande))
+    );
+
+    const data = commandesListe.map((commande) => ({
+      ...commande,
+      hasFacture: factureSet.has(String(commande._id)),
+    }));
+
+    const stats = statsAgg[0] ?? { livre: 0, enCours: 0, enAttente: 0 };
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+
+    return res.status(200).json({
+      results: {
+        data,
+        page,
+        limit,
+        total,
+        totalPages,
+        stats: {
+          livre: stats.livre ?? 0,
+          enCours: stats.enCours ?? 0,
+          enAttente: stats.enAttente ?? 0,
+        },
+      },
+    });
+  } catch (e) {
+    return res.status(500).json({ message: e.message });
+  }
+};
+
 // Trouver une seulle COMMANDE
 exports.getOneCommande = async (req, res) => {
   try {

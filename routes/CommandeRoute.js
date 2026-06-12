@@ -17,6 +17,12 @@ router.get(
 // Pagination des Commandes
 router.get('/paginationCommandes', commandeController.getPagignationCommandes);
 
+// Pagination + recherche + filtres — Historique des Commandes (GET uniquement)
+router.get(
+  '/paginationCommandesHistorique',
+  commandeController.getPaginationCommandesHistorique
+);
+
 //  Obtenir une Commandes
 router.get('/getOneCommande/:id', commandeController.getOneCommande);
 
