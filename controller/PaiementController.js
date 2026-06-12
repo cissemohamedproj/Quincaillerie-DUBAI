@@ -102,7 +102,73 @@ const buildFacturesHistoriqueFilter = async (search) => {
   return { $or: orConditions };
 };
 
-// Enregistrer un paiement
+/**
+ * Interprète un query param Express ("true", true, "1", etc.) en booléen.
+ */
+const parseQueryBoolPaiement = (value) =>
+  value === true ||
+  value === 'true' ||
+  value === '1' ||
+  value === 1;
+
+/**
+ * Construit le filtre MongoDB pour la page Liste Paiements (PaiementsListe).
+ * Combine : recherche texte + impayés (reliquat > 0) + filtre « aujourd'hui ».
+ */
+const buildPaiementsListeFilter = async (
+  search,
+  filterImpayes,
+  today,
+  todayDate,
+  timezone
+) => {
+  const andConditions = [];
+
+  /** Recherche — même logique que l'historique des factures */
+  const searchFilter = await buildFacturesHistoriqueFilter(search);
+  if (Object.keys(searchFilter).length > 0) {
+    andConditions.push(searchFilter);
+  }
+
+  /** Impayés : somme facture > somme payée (reliquat strictement positif) */
+  if (parseQueryBoolPaiement(filterImpayes)) {
+    andConditions.push({
+      $expr: { $gt: ['$totalAmount', '$totalPaye'] },
+    });
+  }
+
+  /**
+   * Aujourd'hui — date locale du navigateur (todayDate YYYY-MM-DD + timezone IANA).
+   * Reproduit : new Date(paiementDate).toLocaleDateString() === new Date().toLocaleDateString()
+   */
+  if (parseQueryBoolPaiement(today)) {
+    const dateKey =
+      todayDate && /^\d{4}-\d{2}-\d{2}$/.test(String(todayDate))
+        ? String(todayDate)
+        : new Date().toLocaleDateString('en-CA');
+    const tz = timezone && String(timezone).trim() ? String(timezone) : 'UTC';
+
+    andConditions.push({
+      $expr: {
+        $eq: [
+          {
+            $dateToString: {
+              format: '%Y-%m-%d',
+              date: '$paiementDate',
+              timezone: tz,
+            },
+          },
+          dateKey,
+        ],
+      },
+    });
+  }
+
+  if (andConditions.length === 0) return {};
+  if (andConditions.length === 1) return andConditions[0];
+  return { $and: andConditions };
+};
+
 exports.createPaiement = async (req, res) => {
   try {
     // On vérifie si le PAIEMENT n'existe pas via ID de Commande
@@ -253,6 +319,91 @@ exports.getPaginationFacturesHistorique = async (req, res) => {
         limit,
         total,
         totalPages,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
+ * GET /api/paiements/paginationPaiementsListe
+ * Pagination + recherche + filtres — page « Paiements » (PaiementsListe).
+ * getPagignationPaiements reste inchangé (même URL / JSON).
+ *
+ * Query params :
+ * - page, limit, search
+ * - filterImpayes=true  → reliquat > 0
+ * - today=true + todayDate + timezone → paiements du jour (fuseau navigateur)
+ *
+ * Réponse :
+ * {
+ *   results: {
+ *     data: [...paiements avec commande peuplée],
+ *     page, limit, total, totalPages,
+ *     stats: { sumTotalAmount, sumTotalPaye, sumNonPaye }
+ *   }
+ * }
+ */
+exports.getPaginationPaiementsListe = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+    const filterImpayes = req.query.filterImpayes;
+    const today = req.query.today;
+    const todayDate = req.query.todayDate;
+    const timezone = req.query.timezone;
+
+    const filter = await buildPaiementsListeFilter(
+      search,
+      filterImpayes,
+      today,
+      todayDate,
+      timezone
+    );
+
+    const [paiementsListe, total, statsAgg] = await Promise.all([
+      Paiement.find(filter)
+        .sort({ paiementDate: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate({
+          path: 'commande',
+          populate: { path: 'items.produit' },
+        })
+        .lean(),
+      Paiement.countDocuments(filter),
+      Paiement.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: null,
+            sumTotalAmount: { $sum: { $ifNull: ['$totalAmount', 0] } },
+            sumTotalPaye: { $sum: { $ifNull: ['$totalPaye', 0] } },
+          },
+        },
+      ]),
+    ]);
+
+    const statsRaw = statsAgg[0] ?? { sumTotalAmount: 0, sumTotalPaye: 0 };
+    const sumTotalAmount = statsRaw.sumTotalAmount ?? 0;
+    const sumTotalPaye = statsRaw.sumTotalPaye ?? 0;
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+
+    return res.status(200).json({
+      results: {
+        data: paiementsListe,
+        page,
+        limit,
+        total,
+        totalPages,
+        stats: {
+          sumTotalAmount,
+          sumTotalPaye,
+          sumNonPaye: Math.max(sumTotalAmount - sumTotalPaye, 0),
+        },
       },
     });
   } catch (err) {

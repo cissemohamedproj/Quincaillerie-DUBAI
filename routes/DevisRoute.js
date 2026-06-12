@@ -8,6 +8,12 @@ router.post('/createDevis', devisController.createDevis);
 //  Obtenir toutes les Deviss
 router.get('/getAllDevis', devisController.getAllDevis);
 
+// Pagination + recherche — Historique des Devis (GET uniquement, DevisListe)
+router.get(
+  '/paginationDevisHistorique',
+  devisController.getPaginationDevisHistorique
+);
+
 //  Obtenir une Deviss
 router.get('/getOneDevis/:id', devisController.getOneDevis);
 

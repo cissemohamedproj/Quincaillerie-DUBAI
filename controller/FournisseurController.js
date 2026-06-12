@@ -86,6 +86,105 @@ exports.getAllFournisseurs = async (req, res) => {
   }
 };
 
+/**
+ * Échappe les caractères spéciaux pour une regex MongoDB sûre (recherche fournisseurs).
+ */
+const escapeRegexFournisseur = (value) =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Construit le filtre MongoDB pour la page Liste Fournisseurs.
+ * Recherche sur nom, prénom, nom complet, email, adresse, téléphone.
+ */
+const buildFournisseurListeFilter = (search) => {
+  if (!search || !String(search).trim()) {
+    return {};
+  }
+
+  const escaped = escapeRegexFournisseur(String(search).trim());
+  const regex = new RegExp(escaped, 'i');
+
+  return {
+    $or: [
+      { firstName: regex },
+      { lastName: regex },
+      { adresse: regex },
+      { emailAdresse: regex },
+      /** Reproduit l'ancien filtre client : "prénom nom" en une seule chaîne */
+      {
+        $expr: {
+          $regexMatch: {
+            input: {
+              $trim: {
+                input: {
+                  $concat: ['$firstName', ' ', '$lastName'],
+                },
+              },
+            },
+            regex: escaped,
+            options: 'i',
+          },
+        },
+      },
+      {
+        $expr: {
+          $regexMatch: {
+            input: { $toString: '$phoneNumber' },
+            regex: escaped,
+            options: 'i',
+          },
+        },
+      },
+    ],
+  };
+};
+
+/**
+ * GET /api/fournisseurs/paginationFournisseurs
+ * Pagination + recherche serveur — page FournisseurListe.
+ * getAllFournisseurs reste inchangé (même URL / JSON tableau simple).
+ *
+ * Query params : page, limit, search
+ *
+ * Réponse :
+ * {
+ *   results: { data, page, limit, total, totalPages }
+ * }
+ */
+exports.getPaginationFournisseurs = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+
+    const filter = buildFournisseurListeFilter(search);
+
+    const [fournisseurs, total] = await Promise.all([
+      Fournisseur.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Fournisseur.countDocuments(filter),
+    ]);
+
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+
+    return res.status(200).json({
+      results: {
+        data: fournisseurs,
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    });
+  } catch (e) {
+    return res.status(500).json({ status: 'error', message: e.message });
+  }
+};
+
 // Récupérer un Fournisseur par ID
 exports.getFournisseur = async (req, res) => {
   try {

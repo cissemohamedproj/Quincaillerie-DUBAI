@@ -11,6 +11,9 @@ router.put('/updateDepense/:id', depenseController.updateDepense);
 // Route to get all expenses
 router.get('/getAllDepense', depenseController.getAllDepenses);
 
+// Pagination + recherche — Liste Dépenses (GET uniquement, DepenseListe)
+router.get('/paginationDepenses', depenseController.getPaginationDepenses);
+
 // Route to get an expense by ID
 router.get('/getDepenseById/:id', depenseController.getDepenseById);
 

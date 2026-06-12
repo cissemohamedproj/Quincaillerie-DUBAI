@@ -11,6 +11,12 @@ router.get('/getAllFournisseurs', fournisseurController.getAllFournisseurs);
 // Compteur léger Dashboard — nombre de fournisseurs (GET uniquement)
 router.get('/countFournisseurs', fournisseurController.countFournisseurs);
 
+// Pagination + recherche — Liste Fournisseurs (GET uniquement, FournisseurListe)
+router.get(
+  '/paginationFournisseurs',
+  fournisseurController.getPaginationFournisseurs
+);
+
 // Afficher un seul Fournisseur
 router.get('/getOneFournisseur/:id', fournisseurController.getFournisseur);
 
