@@ -14,6 +14,12 @@ router.get(
   paiementController.getPagignationPaiements
 );
 
+// Pagination + recherche — Historique des Factures (GET uniquement, FactureListe)
+router.get(
+  '/paginationFacturesHistorique',
+  paiementController.getPaginationFacturesHistorique
+);
+
 // Trouvez un paiements
 router.get('/getOnePaiement/:id', paiementController.getPaiement);
 

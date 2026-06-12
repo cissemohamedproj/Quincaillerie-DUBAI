@@ -1,5 +1,106 @@
 const Paiement = require('../models/PaiementModel');
 const PaiementHistorique = require('../models/PaiementHistoriqueModel');
+const Commande = require('../models/CommandeModel');
+
+/**
+ * Échappe les caractères spéciaux pour une regex MongoDB sûre (recherche factures).
+ */
+const escapeRegexPaiement = (value) =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Construit le filtre MongoDB pour l'historique des factures (page FactureListe).
+ * Recherche sur les champs du paiement ET sur la commande liée (client, téléphone…).
+ */
+const buildFacturesHistoriqueFilter = async (search) => {
+  if (!search || !String(search).trim()) {
+    return {};
+  }
+
+  const escaped = escapeRegexPaiement(String(search).trim());
+  const regex = new RegExp(escaped, 'i');
+
+  /** IDs des commandes dont le client / adresse / téléphone matchent la recherche */
+  const matchingCommandes = await Commande.find({
+    $or: [
+      { fullName: regex },
+      { adresse: regex },
+      { statut: regex },
+      {
+        $expr: {
+          $regexMatch: {
+            input: { $toString: '$phoneNumber' },
+            regex: escaped,
+            options: 'i',
+          },
+        },
+      },
+    ],
+  })
+    .select('_id')
+    .lean();
+
+  const commandeIds = matchingCommandes.map((c) => c._id);
+
+  const orConditions = [
+    { methode: regex },
+    {
+      $expr: {
+        $regexMatch: {
+          input: { $toString: '$totalAmount' },
+          regex: escaped,
+          options: 'i',
+        },
+      },
+    },
+    {
+      $expr: {
+        $regexMatch: {
+          input: { $toString: '$totalPaye' },
+          regex: escaped,
+          options: 'i',
+        },
+      },
+    },
+    {
+      $expr: {
+        $regexMatch: {
+          input: { $toString: { $ifNull: ['$reduction', 0] } },
+          regex: escaped,
+          options: 'i',
+        },
+      },
+    },
+    {
+      $expr: {
+        $regexMatch: {
+          input: {
+            $dateToString: { format: '%d/%m/%Y', date: '$paiementDate' },
+          },
+          regex: escaped,
+          options: 'i',
+        },
+      },
+    },
+    {
+      $expr: {
+        $regexMatch: {
+          input: {
+            $dateToString: { format: '%d/%m/%Y', date: '$createdAt' },
+          },
+          regex: escaped,
+          options: 'i',
+        },
+      },
+    },
+  ];
+
+  if (commandeIds.length > 0) {
+    orConditions.unshift({ commande: { $in: commandeIds } });
+  }
+
+  return { $or: orConditions };
+};
 
 // Enregistrer un paiement
 exports.createPaiement = async (req, res) => {
@@ -105,6 +206,60 @@ exports.getPagignationPaiements = async (req, res) => {
     res.status(400).json({ status: 'error', message: err.message });
   }
 };
+
+/**
+ * GET /api/paiements/paginationFacturesHistorique
+ * Pagination + recherche serveur — page « Historique des Factures » (FactureListe).
+ * getPagignationPaiements et paginationCommandes restent inchangés (même URLs / JSON).
+ *
+ * Query params : page, limit, search
+ *
+ * Réponse :
+ * {
+ *   results: {
+ *     data: [...paiements avec commande + items.produit peuplés],
+ *     page, limit, total, totalPages
+ *   }
+ * }
+ */
+exports.getPaginationFacturesHistorique = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 12, 1), 50);
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+
+    const filter = await buildFacturesHistoriqueFilter(search);
+
+    const [paiementsListe, total] = await Promise.all([
+      Paiement.find(filter)
+        .sort({ paiementDate: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate({
+          path: 'commande',
+          populate: { path: 'items.produit' },
+        })
+        .lean(),
+      Paiement.countDocuments(filter),
+    ]);
+
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+
+    return res.status(200).json({
+      results: {
+        data: paiementsListe,
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
 // Trouver un PAIEMENT
 exports.getPaiement = async (req, res) => {
   try {
