@@ -6,7 +6,10 @@ export const useCreateCommande = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data) => api.post('/commandes/createCommande', data),
-    onSuccess: () => queryClient.invalidateQueries(['commandes']),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commandes'] });
+      queryClient.invalidateQueries({ queryKey: ['commandes', 'topProduits'] });
+    },
   });
 };
 
@@ -16,7 +19,10 @@ export const useUpdateCommande = () => {
   return useMutation({
     mutationFn: ({ commandeId, data }) =>
       api.put(`/commandes/updateCommande/${commandeId}`, data),
-    onSuccess: () => queryClient.invalidateQueries(['commandes']),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commandes'] });
+      queryClient.invalidateQueries({ queryKey: ['commandes', 'topProduits'] });
+    },
   });
 };
 // Lire toutes les commandes
@@ -51,13 +57,33 @@ export const useOneCommande = (id) =>
   });
 
 // Liste des Produits les plus Commandés
-export const useGetTopProduitCommande = () => {
-  return useQuery({
-    queryKey: ['commandes'],
+// Ancien hook — chargeait TOUS les top produits d'un coup (queryKey en conflit avec useAllCommandes)
+// export const useGetTopProduitCommande = () => {
+//   return useQuery({
+//     queryKey: ['commandes'],
+//     queryFn: () =>
+//       api.get('/commandes/topProduitsCommande').then((res) => res.data),
+//   });
+// };
+
+/**
+ * Pagination + recherche serveur — page "Top Produit".
+ * @param {number} page   — numéro de page (1-based)
+ * @param {number} limit  — cartes par page
+ * @param {string} search — terme debouncé (nom, quantité, prix…)
+ */
+export const usePaginationTopProduits = (page = 1, limit = 24, search = '') =>
+  useQuery({
+    queryKey: ['commandes', 'topProduits', 'pagination', page, limit, search],
     queryFn: () =>
-      api.get('/commandes/topProduitsCommande').then((res) => res.data),
+      api
+        .get('/commandes/paginationTopProduitsCommande', {
+          params: { page, limit, search: search.trim() || undefined },
+        })
+        .then((res) => res.data),
+    keepPreviousData: true,
+    staleTime: 1000 * 60 * 2,
   });
-};
 
 // Supprimer une Commande
 export const useDeleteCommande = () => {
@@ -68,8 +94,8 @@ export const useDeleteCommande = () => {
         items,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries(['commandes']);
-      queryClient.invalidateQueries(['commandes']); // si tu veux la liste à jour
+      queryClient.invalidateQueries({ queryKey: ['commandes'] });
+      queryClient.invalidateQueries({ queryKey: ['commandes', 'topProduits'] });
     },
   });
 };

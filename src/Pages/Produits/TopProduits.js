@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -12,28 +12,47 @@ import {
 import Breadcrumbs from '../../components/Common/Breadcrumb';
 
 import LoadingSpiner from '../components/LoadingSpiner';
+import ListPaginationBar from '../components/ListPaginationBar';
 import { capitalizeWords, formatPrice } from '../components/capitalizeFunction';
 
-import { useGetTopProduitCommande } from '../../Api/queriesCommande';
+// Ancien import — chargeait tous les top produits via topProduitsCommande
+// import { useGetTopProduitCommande } from '../../Api/queriesCommande';
+import { usePaginationTopProduits } from '../../Api/queriesCommande';
 import defaultImg from './../../assets/images/no_image.png';
+import useDebouncedValue from '../../Hooks/useDebouncedValue';
 
 export default function TopProduits() {
-  const { data: produits, isLoading, error } = useGetTopProduitCommande();
+  const [page, setPage] = useState(1);
+  const limit = 24;
 
-  // Recherche State
-  // const [searchTerm, setSearchTerm] = useState('');
-  // // Fontion pour Rechercher
-  // const filterSearchProduits = produits?.filter((prod) => {
-  //   const search = searchTerm.toLowerCase();
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebouncedValue(searchTerm, 400);
 
-  //   return (
-  //     prod?.name?.toLowerCase().includes(search) ||
-  //     prod?.stock?.toString().includes(search) ||
-  //     prod?.totalQuantity?.toString().includes(search) ||
-  //     prod?.price?.toString().includes(search) ||
-  //     prod?.achatPrice?.toString().includes(search)
-  //   );
-  // });
+  /**
+   * Retour page 1 à chaque nouvelle recherche pour afficher
+   * les premiers résultats filtrés (évite une page vide).
+   */
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const { data: items, isLoading, error, isFetching } = usePaginationTopProduits(
+    page,
+    limit,
+    debouncedSearch
+  );
+
+  // Ancien code — conservé en commentaire
+  // const { data: produits, isLoading, error } = useGetTopProduitCommande();
+  // const filterSearchProduits = produits?.filter((prod) => { ... });
+
+  const produitsPage = items?.results?.data ?? [];
+  const totalProduits = items?.results?.total ?? 0;
+  const totalPages = items?.results?.totalPages ?? 0;
+
+  const showLoader = isLoading && produitsPage.length === 0;
+  const isSearchActive = debouncedSearch.trim().length > 0;
+
   return (
     <React.Fragment>
       <div className='page-content'>
@@ -52,13 +71,16 @@ export default function TopProduits() {
                       <Col>
                         <p className='text-center font-size-15 mt-2'>
                           Produit Total:{' '}
-                          <span className='text-warning'>
-                            {' '}
-                            {produits?.length}{' '}
-                          </span>
+                          <span className='text-warning'>{totalProduits}</span>
+                          {isSearchActive && (
+                            <span className='text-muted font-size-13'>
+                              {' '}
+                              (résultat{totalProduits > 1 ? 's' : ''} recherche)
+                            </span>
+                          )}
                         </p>
                       </Col>
-                      {/* <Col>
+                      <Col>
                         <div className='d-flex justify-content-sm-end gap-2'>
                           {searchTerm !== '' && (
                             <Button
@@ -78,31 +100,43 @@ export default function TopProduits() {
                             />
                           </div>
                         </div>
-                      </Col> */}
+                      </Col>
                     </Row>
                   </div>
                 </CardBody>
               </Card>
             </Col>
           </Row>
+
+          {/* Pagination EN HAUT — avant la grille de cartes */}
+          {!error && (totalProduits > 0 || isFetching) && (
+            <ListPaginationBar
+              page={page}
+              totalPages={totalPages}
+              total={totalProduits}
+              onPageChange={setPage}
+              isLoading={isFetching}
+            />
+          )}
+
           <div className='d-flex justify-content-center align-items-center gap-4 flex-wrap'>
-            {isLoading && <LoadingSpiner />}
+            {showLoader && <LoadingSpiner />}
             {error && (
               <div className='text-danger text-center'>
                 Erreur lors de chargement des données
               </div>
             )}
-            {!error && !isLoading && produits?.length === 0 && (
+            {!error && !showLoader && produitsPage.length === 0 && (
               <div className='text-center'>
-                Aucun Produit sans stock pour le moment
+                {isSearchActive
+                  ? `Aucun produit trouvé pour « ${debouncedSearch} »`
+                  : 'Aucun produit commandé pour le moment'}
               </div>
             )}
             {!error &&
-              !isLoading &&
-              produits?.length > 0 &&
-              produits?.map((prod, index) => (
+              produitsPage.map((prod) => (
                 <Card
-                  key={index}
+                  key={prod.produitId ?? prod.name}
                   style={{
                     boxShadow: '0px 0px 10px rgba(121,3,105,0.5)',
                     borderRadius: '15px',
@@ -113,6 +147,8 @@ export default function TopProduits() {
                     justifyContent: 'center',
                     alignItems: 'center',
                     border: '3px dotted #160eb1',
+                    opacity: isFetching ? 0.7 : 1,
+                    transition: 'opacity 0.2s',
                   }}
                 >
                   <img
@@ -125,6 +161,7 @@ export default function TopProduits() {
                     }}
                     src={prod?.imageUrl ? prod?.imageUrl : defaultImg}
                     alt={prod?.name}
+                    loading='lazy'
                   />
 
                   <CardBody>
