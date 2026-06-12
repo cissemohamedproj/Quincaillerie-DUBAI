@@ -23,6 +23,12 @@ router.get('/getOneCommande/:id', commandeController.getOneCommande);
 // PRoduit le plu Commandé
 router.get('/topProduitsCommande', commandeController.getTopProduits);
 
+// Pagination + recherche — Top Produits les plus commandés (GET uniquement)
+router.get(
+  '/paginationTopProduitsCommande',
+  commandeController.getPaginationTopProduits
+);
+
 router.put('/updateCommande/:commandeId', commandeController.updateCommande);
 
 //  Supprimer une Commande

@@ -403,3 +403,128 @@ exports.getTopProduits = async (req, res) => {
     return res.status(404).json({ message: error });
   }
 };
+
+/**
+ * Échappe les caractères spéciaux pour une regex MongoDB sûre (recherche).
+ */
+const escapeRegex = (value) =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Pipeline d'agrégation commun : regroupe les quantités commandées par produit,
+ * joint la collection produits, trie par totalQuantity décroissant.
+ * Même logique que getTopProduits, réutilisé pour la version paginée.
+ */
+const buildTopProduitsBasePipeline = () => [
+  { $unwind: '$items' },
+  {
+    $group: {
+      _id: '$items.produit',
+      totalQuantity: { $sum: '$items.quantity' },
+    },
+  },
+  {
+    $lookup: {
+      from: 'produits',
+      localField: '_id',
+      foreignField: '_id',
+      as: 'produit',
+    },
+  },
+  { $unwind: '$produit' },
+  { $sort: { totalQuantity: -1 } },
+  {
+    $project: {
+      _id: 0,
+      produitId: '$produit._id',
+      name: '$produit.name',
+      imageUrl: '$produit.imageUrl',
+      price: '$produit.price',
+      achatPrice: '$produit.achatPrice',
+      totalQuantity: 1,
+    },
+  },
+];
+
+/**
+ * GET /api/commandes/paginationTopProduitsCommande?page=&limit=&search=
+ * Version paginée + recherche pour la page "Top Produit".
+ * getTopProduits (topProduitsCommande) reste inchangé pour compatibilité.
+ *
+ * Réponse :
+ * { results: { data, page, limit, total, totalPages } }
+ * Chaque item a la même forme que getTopProduits (produitId, name, price, totalQuantity…).
+ */
+exports.getPaginationTopProduits = async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 100);
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+
+    const pipeline = buildTopProduitsBasePipeline();
+
+    if (search && String(search).trim()) {
+      const escaped = escapeRegex(String(search).trim());
+      const regex = new RegExp(escaped, 'i');
+
+      pipeline.push({
+        $match: {
+          $or: [
+            { name: regex },
+            {
+              $expr: {
+                $regexMatch: {
+                  input: { $toString: '$totalQuantity' },
+                  regex: escaped,
+                  options: 'i',
+                },
+              },
+            },
+            {
+              $expr: {
+                $regexMatch: {
+                  input: { $toString: '$price' },
+                  regex: escaped,
+                  options: 'i',
+                },
+              },
+            },
+            {
+              $expr: {
+                $regexMatch: {
+                  input: { $toString: '$achatPrice' },
+                  regex: escaped,
+                  options: 'i',
+                },
+              },
+            },
+          ],
+        },
+      });
+    }
+
+    pipeline.push({
+      $facet: {
+        data: [{ $skip: skip }, { $limit: limit }],
+        totalCount: [{ $count: 'count' }],
+      },
+    });
+
+    const [aggregationResult] = await Commande.aggregate(pipeline);
+    const total = aggregationResult?.totalCount[0]?.count ?? 0;
+    const totalPages = total > 0 ? Math.ceil(total / limit) : 0;
+
+    return res.status(200).json({
+      results: {
+        data: aggregationResult?.data ?? [],
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
