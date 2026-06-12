@@ -38,6 +38,34 @@ export const usePaginationPaiements = (page = 1, limit = 600) =>
     keepPreviousData: true,
   });
 
+/**
+ * Pagination + recherche serveur — page « Historique des Factures » (FactureListe).
+ * Remplace usePaginationCommandes qui chargeait commandes + factures inutilement.
+ *
+ * @param {number} page   — numéro de page (1-based)
+ * @param {number} limit  — factures par page (cartes)
+ * @param {string} search — terme debouncé (client, téléphone, montants, date…)
+ */
+export const usePaginationFacturesHistorique = (
+  page = 1,
+  limit = 12,
+  search = ''
+) =>
+  useQuery({
+    queryKey: ['paiements', 'factures', 'historique', page, limit, search],
+    queryFn: () =>
+      api
+        .get('/paiements/paginationFacturesHistorique', {
+          params: {
+            page,
+            limit,
+            search: search.trim() || undefined,
+          },
+        })
+        .then((res) => res.data),
+    staleTime: 0,
+  });
+
 // Obtenir une Paiement
 export const useOnePaiement = (id) =>
   useQuery({

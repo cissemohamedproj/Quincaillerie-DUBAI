@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -18,6 +18,8 @@ import {
 
 import Breadcrumbs from '../../components/Common/Breadcrumb';
 import LoadingSpiner from '../components/LoadingSpiner';
+import ListPaginationBar from '../components/ListPaginationBar';
+import useDebouncedValue from '../../Hooks/useDebouncedValue';
 import * as Yup from 'yup';
 import { useFormik } from 'formik';
 import { capitalizeWords, formatPrice } from '../components/capitalizeFunction';
@@ -27,31 +29,43 @@ import {
 } from '../components/AlerteModal';
 import defaultImg from './../../assets/images/no_image.png';
 import { useNavigate } from 'react-router-dom';
-import { useAllProduit } from '../../Api/queriesProduits';
+// Ancien import — chargeait TOUS les produits d'un coup + filtre client
+// import { useAllProduit } from '../../Api/queriesProduits';
+import { usePaginationProduits } from '../../Api/queriesProduits';
 import { useCreateCommande } from '../../Api/queriesCommande';
 import showToastAlert from '../components/ToasMessage';
 
 export default function NewCommande() {
-  // State de navigation
   const navigate = useNavigate();
 
-  // Query pour afficher les Médicament
-  const { data: produitsData, isLoading, error } = useAllProduit();
-  // Recherche State
+  /** Pagination + recherche serveur — 24 produits par page (grille de cartes) */
+  const [page, setPage] = useState(1);
+  const limit = 24;
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebouncedValue(searchTerm, 400);
 
-  // Fontion pour Rechercher
-  const filterSearchProduits = produitsData?.filter((prod) => {
-    const search = searchTerm.toLowerCase();
+  /** Retour page 1 quand la recherche debouncée change */
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
-    return (
-      prod.name?.toLowerCase().includes(search) ||
-      prod.stock?.toString().includes(search) ||
-      prod.price?.toString().includes(search)
-    );
-  });
+  const { data: items, isLoading, error, isFetching } = usePaginationProduits(
+    page,
+    limit,
+    debouncedSearch
+  );
 
-  // Query pour ajouter une COMMANDE dans la base de données
+  // Ancien code — conservé en commentaire
+  // const { data: produitsData, isLoading, error } = useAllProduit();
+  // const filterSearchProduits = produitsData?.filter((prod) => { ... recherche client ... });
+
+  const produitsPage = items?.results?.data ?? [];
+  const totalProduits = items?.results?.total ?? 0;
+  const totalPages = items?.results?.totalPages ?? 0;
+
+  const showLoader = isLoading && produitsPage.length === 0;
+  const isSearchActive = debouncedSearch.trim().length > 0;
+
   const { mutate: createCommande } = useCreateCommande();
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Ajoute des produits dans le panier sans besoins de la base de données
@@ -516,48 +530,95 @@ export default function NewCommande() {
             </Col>
           </Row>
           {/* ------------------------------------------------------------- */}
-          {/* Liste des produits */}
+          {/* Liste des produits — pagination + recherche serveur */}
           <div>
             <Card>
               <CardBody>
-                {isLoading && <LoadingSpiner />}
-                {error && (
-                  <div className='text-danger text-center'>
-                    Une erreur est survenue ! Veuillez actualiser la page.
-                  </div>
-                )}
-                <Row>
-                  {/* Barre de Recherche */}
-                  <Col sm={12} className='my-4'>
-                    <div className='d-flex justify-content-start gap-2 p-2'>
+                <Row className='g-3 mb-3 align-items-center'>
+                  <Col md={6}>
+                    <p className='text-muted mb-0 font-size-14'>
+                      Produits disponibles :{' '}
+                      <span className='text-warning fw-semibold'>
+                        {totalProduits}
+                      </span>
+                      {isSearchActive && (
+                        <span className='text-info'> · recherche active</span>
+                      )}
+                    </p>
+                  </Col>
+                  <Col md={6}>
+                    <div className='d-flex justify-content-md-end align-items-center gap-2 flex-wrap'>
+                      {isSearchActive && (
+                        <Button
+                          color='light'
+                          size='sm'
+                          className='border'
+                          onClick={() => setSearchTerm('')}
+                        >
+                          <i className='ri-refresh-line me-1'></i>
+                          Effacer
+                        </Button>
+                      )}
                       {searchTerm !== '' && (
                         <Button
                           color='danger'
+                          size='sm'
                           onClick={() => setSearchTerm('')}
                         >
                           <i className='fas fa-window-close'></i>
                         </Button>
                       )}
-                      <div className='search-box me-4'>
+                      <div className='search-box flex-grow-1 flex-md-grow-0'>
                         <input
                           type='text'
                           className='form-control search border border-dark rounded'
-                          placeholder='Rechercher...'
+                          placeholder='Nom, stock, prix…'
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
+                          style={{ minWidth: '220px' }}
                         />
                       </div>
                     </div>
                   </Col>
+                </Row>
 
-                  {/* --------------------------------------------------------------- */}
-                  {/* --------------------------------------------------------------- */}
-                  {/* --------------------------------------------------------------- */}
-                  {/* Maping Produit Liste */}
-                  <div className='d-flex justify-content-center align-items-center gap-4 flex-wrap'>
+                {/* Pagination EN HAUT — avant la grille produits */}
+                {!error && (totalProduits > 0 || isFetching) && (
+                  <ListPaginationBar
+                    page={page}
+                    totalPages={totalPages}
+                    total={totalProduits}
+                    onPageChange={setPage}
+                    isLoading={isFetching}
+                  />
+                )}
+
+                {showLoader && <LoadingSpiner />}
+                {error && (
+                  <div className='text-danger text-center'>
+                    Une erreur est survenue ! Veuillez actualiser la page.
+                  </div>
+                )}
+
+                {!error && !showLoader && produitsPage.length === 0 && (
+                  <div className='text-center text-muted py-4'>
+                    {isSearchActive
+                      ? `Aucun produit trouvé pour « ${debouncedSearch} »`
+                      : 'Aucun produit en stock pour le moment.'}
+                  </div>
+                )}
+
+                <Row>
+                  <div
+                    className='d-flex justify-content-center align-items-center gap-4 flex-wrap'
+                    style={{
+                      opacity: isFetching ? 0.7 : 1,
+                      transition: 'opacity 0.2s',
+                    }}
+                  >
                     {!error &&
-                      filterSearchProduits?.length > 0 &&
-                      filterSearchProduits?.map((produit, index) => (
+                      produitsPage.length > 0 &&
+                      produitsPage.map((produit) => (
                         <Card
                           key={produit._id}
                           className='shadow shadow-lg'
