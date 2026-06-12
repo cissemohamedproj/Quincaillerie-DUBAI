@@ -50,6 +50,8 @@ export default function FournisseurListe() {
   const showLoader = isLoading && fournisseursPage.length === 0;
   const isSearchActive = debouncedSearch.trim().length > 0;
 
+  const resetSearch = () => setSearchTerm('');
+
   function tog_form_modal() {
     setForm_modal(!form_modal);
   }
@@ -60,7 +62,7 @@ export default function FournisseurListe() {
         <Container fluid>
           <Breadcrumbs
             title='Fournisseurs'
-            breadcrumbItem='List des fournisseurs'
+            breadcrumbItem='Liste des fournisseurs'
           />
 
           <FormModal
@@ -118,19 +120,10 @@ export default function FournisseurListe() {
                               color='light'
                               size='sm'
                               className='border'
-                              onClick={() => setSearchTerm('')}
+                              onClick={resetSearch}
                             >
                               <i className='ri-refresh-line me-1'></i>
-                              Effacer
-                            </Button>
-                          )}
-                          {searchTerm !== '' && (
-                            <Button
-                              color='danger'
-                              size='sm'
-                              onClick={() => setSearchTerm('')}
-                            >
-                              <i className='fas fa-window-close'></i>
+                              Réinitialiser
                             </Button>
                           )}
                           <div className='search-box flex-grow-1 flex-md-grow-0'>
@@ -143,6 +136,39 @@ export default function FournisseurListe() {
                               style={{ minWidth: '220px' }}
                             />
                           </div>
+                        </div>
+                      </Col>
+                    </Row>
+
+                    {/* ─── Ligne 2 : synthèse du jeu filtré ─── */}
+                    <Row className='g-3 mb-3'>
+                      <Col sm={6} md={4}>
+                        <div className='border rounded-3 p-3 text-center h-100 bg-light'>
+                          <p className='text-muted font-size-13 mb-2'>
+                            Fournisseurs (filtrés)
+                          </p>
+                          <span className='text-warning fs-4 fw-semibold'>
+                            {totalFournisseurs}
+                          </span>
+                        </div>
+                      </Col>
+                      <Col sm={6} md={8}>
+                        <div className='border rounded-3 p-3 h-100 bg-light d-flex flex-column justify-content-center'>
+                          <p className='text-muted font-size-13 mb-1'>
+                            Recherche serveur
+                          </p>
+                          <p className='mb-0 font-size-14'>
+                            {isSearchActive ? (
+                              <>
+                                Résultats pour{' '}
+                                <span className='text-info fw-semibold'>
+                                  « {debouncedSearch} »
+                                </span>
+                              </>
+                            ) : (
+                              'Tapez un nom, un email ou un téléphone pour filtrer la liste.'
+                            )}
+                          </p>
                         </div>
                       </Col>
                     </Row>
