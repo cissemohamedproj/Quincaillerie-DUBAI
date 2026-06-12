@@ -78,6 +78,14 @@ export default function CommandeListe() {
   const hasActiveFilters =
     filters.today || filters.enCours || filters.enAttente;
 
+  /** Remet à zéro recherche + filtres checkboxes */
+  const resetFilters = () => {
+    setSearchTerm('');
+    setTodayCommande(false);
+    setDelivredCommande(false);
+    setNotdelivredCommande(false);
+  };
+
   const handleCommandeClick = (id) => {
     navigate(`/facture/${id}`);
   };
@@ -160,136 +168,166 @@ export default function CommandeListe() {
     <React.Fragment>
       <div className='page-content'>
         <Container fluid>
-          <Breadcrumbs title='Commande' breadcrumbItem='Historique' />
+          <Breadcrumbs
+            title='Commandes'
+            breadcrumbItem='Historique des Commandes'
+          />
 
           <Row>
             <Col lg={12}>
               <Card>
                 <CardBody>
                   <div id='commandeList'>
-                    <Col md={12}>
-                      <div className=' d-flex align-items-center gap-3 mb-4 justify-content-end'>
-                        {searchTerm !== '' && (
+                    {/* ─── En-tête : titre, total, recherche ─── */}
+                    <Row className='g-3 mb-3 align-items-center'>
+                      <Col md={6} lg={5}>
+                        
+                        <p className='text-muted mb-0 font-size-14'>
+                          Total affiché :{' '}
+                          <span className='text-warning fw-semibold'>
+                            {totalCommandes}
+                          </span>{' '}
+                          commande{totalCommandes > 1 ? 's' : ''}
+                          {(isSearchActive || hasActiveFilters) && (
+                            <span className='text-info'> · filtres actifs</span>
+                          )}
+                        </p>
+                      </Col>
+                      <Col md={6} lg={7}>
+                        <div className='d-flex justify-content-md-end align-items-center gap-2 flex-wrap'>
+                          {(isSearchActive || hasActiveFilters) && (
+                            <Button
+                              color='light'
+                              size='sm'
+                              className='border'
+                              onClick={resetFilters}
+                            >
+                              <i className='ri-refresh-line me-1'></i>
+                              Réinitialiser
+                            </Button>
+                          )}
+                          {searchTerm !== '' && (
+                            <Button
+                              color='danger'
+                              size='sm'
+                              onClick={() => setSearchTerm('')}
+                            >
+                              <i className='fas fa-window-close'></i>
+                            </Button>
+                          )}
+                          <div className='search-box flex-grow-1 flex-md-grow-0'>
+                            <input
+                              type='text'
+                              className='form-control search border border-dark rounded'
+                              placeholder='Client, téléphone, statut, date…'
+                              value={searchTerm}
+                              onChange={(e) => setSearchTerm(e.target.value)}
+                              style={{ minWidth: '220px' }}
+                            />
+                          </div>
+                        </div>
+                      </Col>
+                    </Row>
+
+                    {/* ─── Statistiques sur le jeu filtré (serveur) ─── */}
+                    <Row className='g-3 mb-3'>
+                      <Col sm={4}>
+                        <div className='border rounded-3 p-3 text-center h-100 bg-light'>
+                          <p className='text-muted font-size-13 mb-2'>
+                            Commandes Livrées
+                          </p>
+                          <span className='text-success fs-4 fw-semibold'>
+                            {formatPrice(stats.livre)}
+                          </span>
+                        </div>
+                      </Col>
+                      <Col sm={4}>
+                        <div className='border rounded-3 p-3 text-center h-100 bg-light'>
+                          <p className='text-muted font-size-13 mb-2'>
+                            En Cours de livraison
+                          </p>
+                          <span className='text-info fs-4 fw-semibold'>
+                            {formatPrice(stats.enCours)}
+                          </span>
+                        </div>
+                      </Col>
+                      <Col sm={4}>
+                        <div className='border rounded-3 p-3 text-center h-100 bg-light'>
+                          <p className='text-muted font-size-13 mb-2'>
+                            En Attente
+                          </p>
+                          <span className='text-danger fs-4 fw-semibold'>
+                            {formatPrice(stats.enAttente)}
+                          </span>
+                        </div>
+                      </Col>
+                    </Row>
+
+                    {/* ─── Filtres rapides (boutons toggle — feedback visuel fiable) ─── */}
+                    <Row className='mb-3'>
+                      <Col xs={12}>
+                        <div className='d-flex flex-wrap align-items-center gap-2 py-3 px-3 border rounded-3'>
+                          <span className='text-muted fw-semibold font-size-14 me-1'>
+                            Filtrer par :
+                          </span>
                           <Button
-                            color='danger'
-                            onClick={() => setSearchTerm('')}
+                            type='button'
+                            color={todayCommande ? 'warning' : 'light'}
+                            size='sm'
+                            className={
+                              todayCommande
+                                ? 'fw-semibold'
+                                : 'border text-dark'
+                            }
+                            onClick={() =>
+                              setTodayCommande((prev) => !prev)
+                            }
+                            aria-pressed={todayCommande}
                           >
-                            <i className='fas fa-window-close'></i>
+                            Aujourd'hui
                           </Button>
-                        )}
-                        <div className='search-box me-2'>
-                          <input
-                            type='text'
-                            className='form-control search border border-dark rounded'
-                            placeholder='Rechercher...'
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </Col>
-
-                    <Col md={12}>
-                      <div className='d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4'>
-                        <div className='d-flex flex-column justify-content-center align-items-center gap-2 text-warning'>
-                          <label
-                            className='form-check-label'
-                            htmlFor='filterToday'
-                          >
-                            Commande d'Aujourd'hui
-                          </label>
-                          <input
-                            type='checkbox'
-                            className='form-check-input'
-                            id='filterToday'
-                            checked={todayCommande}
-                            onChange={() => setTodayCommande(!todayCommande)}
-                          />
-                        </div>
-                        <div className='d-flex flex-column justify-content-center align-items-center gap-2 text-warning'>
-                          <label
-                            className='form-check-label'
-                            htmlFor='filterDelivredCommande'
-                          >
-                            Commandes En Cours
-                          </label>
-                          <input
-                            type='checkbox'
-                            className='form-check-input'
-                            id='filterDelivredCommande'
-                            checked={delivredCommande}
-                            onChange={() =>
-                              setDelivredCommande(!delivredCommande)
+                          <Button
+                            type='button'
+                            color={delivredCommande ? 'info' : 'light'}
+                            size='sm'
+                            className={
+                              delivredCommande
+                                ? 'fw-semibold'
+                                : 'border text-dark'
                             }
-                          />
-                        </div>
-                        <div className='d-flex flex-column justify-content-center align-items-center gap-2 text-warning'>
-                          <label
-                            className='form-check-label'
-                            htmlFor='filterNotDelivredCommande'
-                          >
-                            Commande En Attente
-                          </label>
-                          <input
-                            type='checkbox'
-                            className='form-check-input'
-                            id='filterNotDelivredCommande'
-                            checked={notDelivredCommande}
-                            onChange={() =>
-                              setNotdelivredCommande(!notDelivredCommande)
+                            onClick={() =>
+                              setDelivredCommande((prev) => !prev)
                             }
-                          />
+                            aria-pressed={delivredCommande}
+                          >
+                            En cours
+                          </Button>
+                          <Button
+                            type='button'
+                            color={notDelivredCommande ? 'danger' : 'light'}
+                            size='sm'
+                            className={
+                              notDelivredCommande
+                                ? 'fw-semibold'
+                                : 'border text-dark'
+                            }
+                            onClick={() =>
+                              setNotdelivredCommande((prev) => !prev)
+                            }
+                            aria-pressed={notDelivredCommande}
+                          >
+                            En attente
+                          </Button>
+                          <span className='text-muted font-size-12 ms-md-auto'>
+                            <i className='fas fa-dollar-sign text-warning me-1'></i>
+                            = facture enregistrée
+                          </span>
                         </div>
-                      </div>
-                    </Col>
-
-                    {/* Compteurs calculés côté serveur sur l'ensemble filtré */}
-                    <Row className='mt-4 d-flex flex-wrap justify-content-center align-items-center'>
-                      <Col
-                        md={3}
-                        className='d-flex flex-column justify-content-center align-items-center'
-                      >
-                        <h6 className='text-center font-size-15 mt-2'>
-                          Commande Enregistrée
-                        </h6>
-                        <span className='text-info font-size-18'>
-                          {formatPrice(stats.livre)}
-                        </span>
-                      </Col>
-                      <Col
-                        md={3}
-                        className='d-flex flex-column justify-content-center align-items-center'
-                      >
-                        <h6 className='text-center font-size-15 mt-2'>
-                          Commande En Cours
-                        </h6>
-                        <span className='text-info font-size-18'>
-                          {formatPrice(stats.enCours)}
-                        </span>
-                      </Col>
-                      <Col
-                        md={3}
-                        className='d-flex flex-column justify-content-center align-items-center'
-                      >
-                        <h6 className='text-center font-size-15 mt-2'>
-                          Commande En Attente
-                        </h6>
-                        <span className='text-danger font-size-18'>
-                          {formatPrice(stats.enAttente)}
-                        </span>
-                      </Col>
-                      <Col md={12} className='text-center mt-2'>
-                        <span className='text-warning font-size-13'>
-                          Total affiché : {totalCommandes} commande
-                          {totalCommandes > 1 ? 's' : ''}
-                          {(isSearchActive || hasActiveFilters) &&
-                            ' (filtres actifs)'}
-                        </span>
                       </Col>
                     </Row>
 
                     {error && (
-                      <div className='text-danger text-center mt-3'>
+                      <div className='text-danger text-center mb-3'>
                         Erreur de chargement des données
                       </div>
                     )}
@@ -356,7 +394,7 @@ export default function CommandeListe() {
                               </th>
                             </tr>
                           </thead>
-                          <tbody className='list form-check-all text-center'>
+                          <tbody className='text-center'>
                             {commandesPage.map((comm) => (
                               <tr key={comm?._id}>
                                 <th scope='row'>

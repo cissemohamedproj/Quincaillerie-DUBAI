@@ -58,8 +58,18 @@ export const usePaginationCommandesHistorique = (
   limit = 50,
   search = '',
   filters = {}
-) =>
-  useQuery({
+) => {
+  /** Date locale du navigateur (YYYY-MM-DD) — même logique que l'ancien filtre client */
+  const clientToday =
+    typeof window !== 'undefined'
+      ? new Date().toLocaleDateString('en-CA')
+      : undefined;
+  const clientTimezone =
+    typeof window !== 'undefined'
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : undefined;
+
+  return useQuery({
     queryKey: [
       'commandes',
       'historique',
@@ -70,6 +80,7 @@ export const usePaginationCommandesHistorique = (
       filters.today,
       filters.enCours,
       filters.enAttente,
+      filters.today ? clientToday : null,
     ],
     queryFn: () =>
       api
@@ -78,15 +89,17 @@ export const usePaginationCommandesHistorique = (
             page,
             limit,
             search: search.trim() || undefined,
-            today: filters.today ? true : undefined,
-            filterEnCours: filters.enCours ? true : undefined,
-            filterEnAttente: filters.enAttente ? true : undefined,
+            today: filters.today ? 'true' : undefined,
+            todayDate: filters.today ? clientToday : undefined,
+            timezone: filters.today ? clientTimezone : undefined,
+            filterEnCours: filters.enCours ? 'true' : undefined,
+            filterEnAttente: filters.enAttente ? 'true' : undefined,
           },
         })
         .then((res) => res.data),
-    keepPreviousData: true,
-    staleTime: 1000 * 60 * 2,
+    staleTime: 0,
   });
+};
 
 // Obtenir une Commande
 export const useOneCommande = (id) =>
