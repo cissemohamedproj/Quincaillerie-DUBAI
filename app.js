@@ -63,5 +63,8 @@ app.use('/api/depenses', depenseRoute);
 // Utilisation des routes Achat
 app.use('/api/achats', achatRoute);
 
+// Rapports & statistiques (GET uniquement — calculs centralisés serveur)
+app.use('/api/rapports', require('./routes/RapportRoute'));
+
 //  Exporter le fichier APP
 module.exports = app;
