@@ -1,19 +1,97 @@
-name: Dépoiement de Frontent
+
+name: Deploiement Frontend VPS
 
 on:
   push:
     branches:
       - v2_frontend
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: true
+
 jobs:
   deploy:
+    name: Deploy React to Contabo VPS
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Configure SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
 
-      - name: Déploiement sur RENDER
-        run: curl -X POST ${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK }}
+      - name: Configure known hosts
+        env:
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
-      - name: Statut de Depoiement
-        run: echo "✨Déployé avec succès✅"
+      - name: Deploy frontend on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -o BatchMode=yes "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
+            set -e
+
+            APP_DIR="/home/mohamed/apps/quincaillerie-dubai"
+            FRONTEND_DIR="$APP_DIR/frontend"
+            WEB_DIR="/var/www/quincaillerie-dubai"
+
+            echo "Updating source code..."
+
+            cd "$APP_DIR"
+
+            git fetch origin \
+              +refs/heads/v2_frontend:refs/remotes/origin/v2_frontend
+
+            git checkout v2_frontend
+            git reset --hard origin/v2_frontend
+
+            echo "Installing frontend dependencies..."
+
+            cd "$FRONTEND_DIR"
+
+            if [ -f package-lock.json ]; then
+              npm ci
+            else
+              npm install
+            fi
+
+            echo "Building React application..."
+
+            npm run build
+
+            if [ -d build ]; then
+              BUILD_DIR="build"
+            elif [ -d dist ]; then
+              BUILD_DIR="dist"
+            else
+              echo "ERROR: Build directory not found"
+              exit 1
+            fi
+
+            if [ ! -f "$BUILD_DIR/index.html" ]; then
+              echo "ERROR: index.html not found"
+              exit 1
+            fi
+
+            echo "Deploying files to Nginx..."
+
+            mkdir -p "$WEB_DIR"
+            rsync -a --delete "$BUILD_DIR/" "$WEB_DIR/"
+
+            echo "Frontend deployment completed successfully!"
+          REMOTE
+
+      - name: Deployment status
+        run: echo "Frontend deployed successfully!"

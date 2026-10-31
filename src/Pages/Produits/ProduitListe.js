@@ -137,12 +137,12 @@ export default function ProduitListe() {
                             </span>
                           )}
                         </p>
-                        <p className='text-center font-size-15 mt-2'>
+                        {connectedUserRole === 'admin' && <p className='text-center font-size-15 mt-2'>
                           Valeur de Boutique:{' '}
                           <span className='text-warning'>
                             {formatPrice(totalValeurBoutique)}
                           </span>
-                        </p>
+                        </p>}
                       </Col>
                       <Col>
                         <div className='d-flex justify-content-sm-end gap-2'>
