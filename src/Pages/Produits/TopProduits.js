@@ -75,7 +75,7 @@ export default function TopProduits() {
                           {isSearchActive && (
                             <span className='text-muted font-size-13'>
                               {' '}
-                              (résultat{totalProduits > 1 ? 's' : ''} recherche)
+                              (résultat {totalProduits > 1 ? 's' : ''} recherche)
                             </span>
                           )}
                         </p>
