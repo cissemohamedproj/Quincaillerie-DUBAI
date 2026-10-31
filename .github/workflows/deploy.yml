@@ -43,7 +43,7 @@ jobs:
           ssh -o BatchMode=yes "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
             set -e
 
-            APP_DIR="/home/apps/quincaillerie-dubai/frontend"
+            APP_DIR="/home/apps/quincaillerie-dubai"
             FRONTEND_DIR="$APP_DIR/frontend"
             WEB_DIR="/var/www/quincaillerie-dubai"
 
