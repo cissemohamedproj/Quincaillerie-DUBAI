@@ -34,7 +34,6 @@ jobs:
           chmod 700 ~/.ssh
           printf '%s\n' "$VPS_KNOWN_HOSTS" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-
       - name: Deploy frontend on VPS
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -43,24 +42,17 @@ jobs:
           ssh -o BatchMode=yes "$VPS_USER@$VPS_HOST" 'bash -s' <<'REMOTE'
             set -e
 
-            APP_DIR="/home/apps/quincaillerie-dubai"
-            FRONTEND_DIR="$APP_DIR/frontend"
+            FRONTEND_DIR="/home/apps/quincaillerie-dubai/frontend"
             WEB_DIR="/var/www/quincaillerie-dubai"
 
-            echo "Updating source code..."
+            echo "Updating frontend source code..."
+            cd "$FRONTEND_DIR"
 
-            cd "$APP_DIR"
-
-            git fetch origin \
-              +refs/heads/v2_frontend:refs/remotes/origin/v2_frontend
-
+            git fetch origin
             git checkout v2_frontend
             git reset --hard origin/v2_frontend
 
-            echo "Installing frontend dependencies..."
-
-            cd "$FRONTEND_DIR"
-
+            echo "Installing dependencies..."
             if [ -f package-lock.json ]; then
               npm ci
             else
@@ -68,7 +60,6 @@ jobs:
             fi
 
             echo "Building React application..."
-
             npm run build
 
             if [ -d build ]; then
@@ -85,13 +76,8 @@ jobs:
               exit 1
             fi
 
-            echo "Deploying files to Nginx..."
-
-            mkdir -p "$WEB_DIR"
+            echo "Deploying frontend..."
             rsync -a --delete "$BUILD_DIR/" "$WEB_DIR/"
 
             echo "Frontend deployment completed successfully!"
           REMOTE
-
-      - name: Deployment status
-        run: echo "Frontend deployed successfully!"
