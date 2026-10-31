@@ -23,11 +23,6 @@ import { createSelector } from 'reselect';
 import PrivateRoute from '../Auth/PrivateRoutes';
 import ConnectedUserRoute from '../Auth/ConnectedUserRoute';
 import Login from '../Pages/Authentication/Login';
-import { createRequire } from 'module';
-
-var require = createRequire(import.meta.url);
-var module = { exports: {} };
-
 
 const getLayout = (layoutType) => {
   let Layout = VerticalLayout;
