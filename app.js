@@ -19,7 +19,15 @@ const bodyParser = require('body-parser');
 const app = express();
 
 // Middlewares globaux
-app.use(cors()); // Autoriser les requêtes cross-origin
+// app.use(cors()); 
+// Autoriser les requêtes cross-origin
+app.use(cors({
+  origin: [
+    "https://quincailleriedubai.online",
+    "https://www.quincailleriedubai.online"
+  ],
+  credentials: true
+}));
 app.use(express.json()); // Parser les requêtes avec JSON
 
 // Lire les données de formulaire avec body parser
