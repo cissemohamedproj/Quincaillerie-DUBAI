@@ -24,7 +24,6 @@ import PrivateRoute from '../Auth/PrivateRoutes';
 import ConnectedUserRoute from '../Auth/ConnectedUserRoute';
 import Login from '../Pages/Authentication/Login';
 import { createRequire } from 'module';
-import { createRequire } from 'module';
 
 var require = createRequire(import.meta.url);
 var module = { exports: {} };
